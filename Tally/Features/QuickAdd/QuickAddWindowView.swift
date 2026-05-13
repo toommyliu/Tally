@@ -14,7 +14,7 @@ struct QuickAddWindowView: View {
     }
 
     private let supportedNLPHelp = """
-    Supported tokens: today, tomorrow, tmr, today 3pm, today at 3:30pm, #List, @tag, P1, P2, P3, P4.
+    Supported tokens: today, tomorrow, tmr, today 3pm, today at 3:30pm, in 45 minutes, in 2 hours, in an hour, in 90m, 2h, in 3 days, next week, next monday, later today, tonight, this afternoon, #List, @tag, P1, P2, P3, P4.
     """
 
     var body: some View {

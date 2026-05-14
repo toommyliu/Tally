@@ -38,6 +38,7 @@ struct QuickAddWindowView: View {
                 QuickAddPreview(fields: parsedPreview, fallbackListTitle: reminderStore.activeListTitle)
                     .environmentObject(reminderStore)
                     .onInsertToken(insertToken)
+                    .onSelectDate(setDueDate)
             }
             .padding(.horizontal, 16)
             .padding(.top, 15)
@@ -107,6 +108,27 @@ struct QuickAddWindowView: View {
         let separator = quickAddText.isEmpty || quickAddText.hasSuffix(" ") ? "" : " "
         quickAddText += separator + token
     }
+
+    private func setDueDate(_ date: Date) {
+        let token = Self.dateToken(for: date)
+        let fields = QuickAddParser.parse(quickAddText)
+
+        if let existingDateToken = fields.usedTokens.first(where: { $0.kind == .date }),
+           let range = Range(existingDateToken.range, in: quickAddText) {
+            quickAddText.replaceSubrange(range, with: token)
+        } else {
+            insertToken(token)
+        }
+    }
+
+    private static func dateToken(for date: Date) -> String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        let year = components.year ?? 0
+        let month = components.month ?? 1
+        let day = components.day ?? 1
+
+        return String(format: "%04d-%02d-%02d", year, month, day)
+    }
 }
 
 private struct TokenHelpView: View {
@@ -125,6 +147,7 @@ private struct TokenHelpView: View {
 private struct QuickAddPreview: View {
     @EnvironmentObject private var reminderStore: ReminderStore
     @Environment(\.insertQuickAddToken) private var insertToken
+    @Environment(\.selectQuickAddDate) private var selectDate
 
     let fields: QuickAddFields
     let fallbackListTitle: String
@@ -132,20 +155,7 @@ private struct QuickAddPreview: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                Menu {
-                    Button("Today") { insertToken("today") }
-                    Button("Tomorrow") { insertToken("tomorrow") }
-                    Button("Tonight") { insertToken("tonight") }
-                    Button("Next week") { insertToken("next week") }
-                } label: {
-                    Chip(
-                        systemName: "calendar",
-                        title: fields.dueDate?.shortDisplayTitle ?? "Date",
-                        tint: .green,
-                        isPlaceholder: fields.dueDate == nil
-                    )
-                }
-                .menuStyle(.borderlessButton)
+                DatePickerChip(fields: fields, onSelectDate: selectDate)
 
                 Menu {
                     ForEach(reminderStore.reminderListTitles, id: \.self) { listTitle in
@@ -195,6 +205,53 @@ private struct QuickAddPreview: View {
     }
 }
 
+private struct DatePickerChip: View {
+    @State private var isShowingPicker = false
+
+    let fields: QuickAddFields
+    let onSelectDate: (Date) -> Void
+
+    var body: some View {
+        Button {
+            isShowingPicker.toggle()
+        } label: {
+            Chip(
+                systemName: "calendar",
+                title: fields.dueDate?.shortDisplayTitle ?? "Date",
+                tint: .green,
+                isPlaceholder: fields.dueDate == nil
+            )
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
+            DatePicker(
+                "Due date",
+                selection: Binding(
+                    get: { selectedDate },
+                    set: { date in
+                        onSelectDate(date)
+                        isShowingPicker = false
+                    }
+                ),
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .labelsHidden()
+            .padding(12)
+        }
+    }
+
+    private var selectedDate: Date {
+        guard let dueDate = fields.dueDate,
+              let date = Calendar.current.date(from: dueDate)
+        else {
+            return Date()
+        }
+
+        return date
+    }
+}
+
 private struct Chip: View {
     let systemName: String
     let title: String
@@ -224,15 +281,28 @@ private struct InsertQuickAddTokenKey: EnvironmentKey {
     static let defaultValue: (String) -> Void = { _ in }
 }
 
+private struct SelectQuickAddDateKey: EnvironmentKey {
+    static let defaultValue: (Date) -> Void = { _ in }
+}
+
 private extension EnvironmentValues {
     var insertQuickAddToken: (String) -> Void {
         get { self[InsertQuickAddTokenKey.self] }
         set { self[InsertQuickAddTokenKey.self] = newValue }
+    }
+
+    var selectQuickAddDate: (Date) -> Void {
+        get { self[SelectQuickAddDateKey.self] }
+        set { self[SelectQuickAddDateKey.self] = newValue }
     }
 }
 
 private extension View {
     func onInsertToken(_ action: @escaping (String) -> Void) -> some View {
         environment(\.insertQuickAddToken, action)
+    }
+
+    func onSelectDate(_ action: @escaping (Date) -> Void) -> some View {
+        environment(\.selectQuickAddDate, action)
     }
 }

@@ -46,6 +46,17 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertEqual(fields.dueDate?.day, 1)
     }
 
+    func testParsesDatePickerToken() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13)))
+        let input = "Renew license 2026-06-04"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Renew license")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 6, day: 4, hour: nil, minute: nil)
+        XCTAssertToken(in: fields, originalText: input, kind: .date, equals: "2026-06-04")
+    }
+
     func testParsesDueTimeAfterDateToken() throws {
         let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13)))
 

@@ -71,11 +71,13 @@ final class MenuBarController: NSObject {
         case .trailingCount:
             statusItem.length = NSStatusItem.variableLength
             statusItem.button?.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "Tally")
+            statusItem.button?.imageScaling = .scaleNone
             statusItem.button?.imagePosition = .imageLeading
             statusItem.button?.title = count > 0 ? " \(count)" : ""
         case .iconBadge:
             statusItem.length = MenuBarIconRenderer.statusItemLength
             statusItem.button?.image = MenuBarIconRenderer.image(count: count)
+            statusItem.button?.imageScaling = .scaleNone
             statusItem.button?.imagePosition = .imageOnly
             statusItem.button?.title = ""
         }

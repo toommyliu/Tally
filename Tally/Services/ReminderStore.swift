@@ -1,4 +1,5 @@
 import EventKit
+import AppKit
 import Foundation
 
 @MainActor
@@ -21,6 +22,14 @@ final class ReminderStore: ObservableObject {
 
     var activeListTitle: String {
         eventStore.defaultCalendarForNewReminders()?.title ?? "Inbox"
+    }
+
+    var reminderListTitles: [String] {
+        eventStore
+            .calendars(for: .reminder)
+            .filter(\.allowsContentModifications)
+            .map(\.title)
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
     init() {
@@ -133,6 +142,47 @@ final class ReminderStore: ObservableObject {
         }
     }
 
+    func deleteReminder(withID id: String) async {
+        await requestAccessIfNeeded()
+
+        guard accessState == .authorized else {
+            return
+        }
+
+        do {
+            guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
+                await reload()
+                return
+            }
+
+            try eventStore.remove(reminder, commit: true)
+            await reload()
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func openReminder(withID id: String) {
+        guard eventStore.calendarItem(withIdentifier: id) is EKReminder else {
+            return
+        }
+
+        // EventKit does not expose a public deep link for a specific Reminders item.
+        openReminders()
+    }
+
+    func openReminders() {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.reminders") else {
+            return
+        }
+
+        NSWorkspace.shared.openApplication(
+            at: url,
+            configuration: NSWorkspace.OpenConfiguration()
+        )
+    }
+
     private func requestFullReminderAccess() async -> Bool {
         await withCheckedContinuation { continuation in
             eventStore.requestFullAccessToReminders { granted, _ in
@@ -161,7 +211,10 @@ final class ReminderStore: ObservableObject {
             .calendars(for: .reminder)
             .first(where: { calendar in
                 calendar.allowsContentModifications &&
-                    calendar.title.compare(listName, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+                    calendar.title.compare(
+                        listName.replacingOccurrences(of: "_", with: " "),
+                        options: [.caseInsensitive, .diacriticInsensitive]
+                    ) == .orderedSame
             }) {
             return matchingCalendar
         }
@@ -212,4 +265,3 @@ private extension DateComponents {
         Calendar.current.date(from: self)
     }
 }
-

@@ -22,6 +22,18 @@ struct QuickAddToken: Equatable {
     var range: NSRange
 }
 
+enum QuickAddListTokenCodec {
+    private static let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+
+    static func encode(_ listTitle: String) -> String {
+        listTitle.addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? listTitle
+    }
+
+    static func decode(_ listToken: String) -> String {
+        listToken.removingPercentEncoding ?? listToken
+    }
+}
+
 enum QuickAddParser {
     static func parse(
         _ input: String,
@@ -41,7 +53,7 @@ enum QuickAddParser {
             let token = tokens[index]
 
             if token.text.hasPrefix("#"), token.text.count > 1 {
-                listName = String(token.text.dropFirst())
+                listName = QuickAddListTokenCodec.decode(String(token.text.dropFirst()))
                 usedTokens.append(QuickAddToken(kind: .list, range: token.range))
                 index += 1
                 continue

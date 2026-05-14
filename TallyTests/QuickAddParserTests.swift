@@ -23,6 +23,17 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertEqual(fields.usedTokens.count, 4)
     }
 
+    func testParsesEncodedListTokenWithoutLosingUnderscores() throws {
+        let encodedSpace = QuickAddParser.parse("File report #Work%20Items", calendar: calendar)
+        XCTAssertEqual(encodedSpace.listName, "Work Items")
+
+        let literalUnderscore = QuickAddParser.parse("File report #Work_Items", calendar: calendar)
+        XCTAssertEqual(literalUnderscore.listName, "Work_Items")
+
+        let literalPercentEncoding = QuickAddParser.parse("File report #Work%2520Items", calendar: calendar)
+        XCTAssertEqual(literalPercentEncoding.listName, "Work%20Items")
+    }
+
     func testTomorrowAliasUsesNextDay() throws {
         let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 12, day: 31)))
 

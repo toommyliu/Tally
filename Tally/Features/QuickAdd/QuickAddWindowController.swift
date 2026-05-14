@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 final class QuickAddWindowController: NSObject, NSWindowDelegate {
-    private static let windowSize = NSSize(width: 440, height: 174)
+    private static let windowSize = NSSize(width: 520, height: 176)
 
     private let reminderStore: ReminderStore
     private var window: NSWindow?
@@ -55,14 +55,18 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             onCancel: { [weak self] in
                 self?.close()
             },
-            onSubmit: { [weak self] input, notes in
+            onSubmit: { [weak self] input, notes, shouldKeepOpen in
                 guard let self else {
                     return
                 }
 
                 Task {
                     await self.reminderStore.addReminder(from: input, notes: notes)
-                    self.close()
+                    if shouldKeepOpen {
+                        self.window?.makeKeyAndOrderFront(nil)
+                    } else {
+                        self.close()
+                    }
                 }
             }
         )

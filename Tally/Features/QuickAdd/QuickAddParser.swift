@@ -178,8 +178,40 @@ enum QuickAddParser {
             }
             return dateOnlyComponents(from: date, calendar: calendar)
         default:
+            return parseISODate(normalized, calendar: calendar)
+        }
+    }
+
+    private static func parseISODate(_ token: String, calendar: Calendar) -> DateComponents? {
+        let parts = token.split(separator: "-", omittingEmptySubsequences: false)
+
+        guard parts.count == 3,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[2].count == 2,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2])
+        else {
             return nil
         }
+
+        var components = DateComponents()
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
+        components.year = year
+        components.month = month
+        components.day = day
+
+        guard let date = calendar.date(from: components),
+              calendar.component(.year, from: date) == year,
+              calendar.component(.month, from: date) == month,
+              calendar.component(.day, from: date) == day
+        else {
+            return nil
+        }
+
+        return dateOnlyComponents(from: date, calendar: calendar)
     }
 
     private static func parseRelativeDate(

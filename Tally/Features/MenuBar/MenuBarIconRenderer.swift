@@ -4,7 +4,7 @@ enum MenuBarIconRenderer {
     static let statusItemLength: CGFloat = 30
 
     static func image(count: Int) -> NSImage? {
-        let size = NSSize(width: 28, height: 18)
+        let size = NSSize(width: statusItemLength, height: 18)
         let image = NSImage(size: size)
         image.isTemplate = false
         image.cacheMode = .never
@@ -18,7 +18,7 @@ enum MenuBarIconRenderer {
             accessibilityDescription: "Tally"
         )?.withSymbolConfiguration(symbolConfiguration)
         let symbolRect = NSRect(
-            x: 2,
+            x: count > 0 ? 2 : (size.width - 16) / 2,
             y: 1,
             width: 16,
             height: 16
@@ -31,7 +31,7 @@ enum MenuBarIconRenderer {
         if count > 0 {
             let text = count > 99 ? "99+" : "\(count)"
             let badgeWidth: CGFloat = text == "99+" ? 16 : 13
-            let badgeRect = NSRect(x: size.width - badgeWidth - 1.5, y: 7, width: badgeWidth, height: 11)
+            let badgeRect = NSRect(x: size.width - badgeWidth - 2, y: 7, width: badgeWidth, height: 11)
             let badgePath = NSBezierPath(roundedRect: badgeRect, xRadius: 5.5, yRadius: 5.5)
             NSColor.labelColor.withAlphaComponent(0.92).setFill()
             badgePath.fill()

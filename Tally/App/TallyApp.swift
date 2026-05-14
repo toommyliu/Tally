@@ -2,32 +2,41 @@ import SwiftUI
 
 @main
 struct TallyApp: App {
-    @StateObject private var reminderStore = ReminderStore()
-    @AppStorage("showMenuBarBadge") private var showMenuBarBadge = true
-    private let appController = AppController()
+    @NSApplicationDelegateAdaptor(TallyAppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuBarView {
-                appController.showQuickAddAfterMenuDismissal()
-            }
-                .environmentObject(reminderStore)
-        } label: {
-            MenuBarIcon(
-                count: reminderStore.reminders.count,
-                showsBadge: showMenuBarBadge
-            )
-            .task {
-                appController.configure(reminderStore: reminderStore)
-                await reminderStore.bootstrap()
-            }
-        }
-
         Settings {
-            SettingsView()
-                .environmentObject(reminderStore)
-                .padding(24)
-                .frame(width: 420)
+            SettingsView(
+                onQuickAddShortcutChange: { shortcut in
+                    appDelegate.appController.applyQuickAddShortcut(shortcut)
+                },
+                onTrayShortcutChange: { shortcut in
+                    appDelegate.appController.applyTrayShortcut(shortcut)
+                }
+            )
+                .environmentObject(appDelegate.reminderStore)
+                .environmentObject(appDelegate.settingsStore)
+                .environmentObject(appDelegate.launchAtLoginController)
+        }
+    }
+}
+
+@MainActor
+final class TallyAppDelegate: NSObject, NSApplicationDelegate {
+    let reminderStore = ReminderStore()
+    let settingsStore = AppSettingsStore()
+    let launchAtLoginController = LaunchAtLoginController()
+    let appController = AppController()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        appController.configure(
+            reminderStore: reminderStore,
+            settingsStore: settingsStore,
+            launchAtLoginController: launchAtLoginController
+        )
+
+        Task {
+            await reminderStore.bootstrap()
         }
     }
 }

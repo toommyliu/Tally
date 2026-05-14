@@ -21,6 +21,14 @@
 		10000000000000000000000C /* QuickAddWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000110 /* QuickAddWindowView.swift */; };
 		10000000000000000000000D /* ReminderFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000111 /* ReminderFormatting.swift */; };
 		10000000000000000000000E /* HighlightedQuickAddTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000112 /* HighlightedQuickAddTextField.swift */; };
+		10000000000000000000000F /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000113 /* AppSettings.swift */; };
+		100000000000000000000010 /* AppSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000114 /* AppSettingsStore.swift */; };
+		100000000000000000000011 /* LaunchAtLoginController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000115 /* LaunchAtLoginController.swift */; };
+		100000000000000000000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000116 /* SettingsView.swift */; };
+		100000000000000000000013 /* ShortcutRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000117 /* ShortcutRecorderView.swift */; };
+		100000000000000000000014 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000118 /* MenuBarController.swift */; };
+		100000000000000000000015 /* MenuBarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000119 /* MenuBarIconRenderer.swift */; };
+		100000000000000000000017 /* AppSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011B /* AppSettingsStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,6 +60,14 @@
 		100000000000000000000110 /* QuickAddWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowView.swift; sourceTree = "<group>"; };
 		100000000000000000000111 /* ReminderFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderFormatting.swift; sourceTree = "<group>"; };
 		100000000000000000000112 /* HighlightedQuickAddTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightedQuickAddTextField.swift; sourceTree = "<group>"; };
+		100000000000000000000113 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		100000000000000000000114 /* AppSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStore.swift; sourceTree = "<group>"; };
+		100000000000000000000115 /* LaunchAtLoginController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginController.swift; sourceTree = "<group>"; };
+		100000000000000000000116 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		100000000000000000000117 /* ShortcutRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorderView.swift; sourceTree = "<group>"; };
+		100000000000000000000118 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		100000000000000000000119 /* MenuBarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconRenderer.swift; sourceTree = "<group>"; };
+		10000000000000000000011B /* AppSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -108,6 +124,7 @@
 			children = (
 				100000000000000000000205 /* MenuBar */,
 				100000000000000000000206 /* QuickAdd */,
+				10000000000000000000020D /* Settings */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -117,6 +134,8 @@
 			children = (
 				100000000000000000000102 /* MenuBarView.swift */,
 				100000000000000000000103 /* MenuBarIcon.swift */,
+				100000000000000000000118 /* MenuBarController.swift */,
+				100000000000000000000119 /* MenuBarIconRenderer.swift */,
 			);
 			path = MenuBar;
 			sourceTree = "<group>";
@@ -137,6 +156,7 @@
 			children = (
 				100000000000000000000105 /* ReminderItem.swift */,
 				100000000000000000000111 /* ReminderFormatting.swift */,
+				100000000000000000000113 /* AppSettings.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -146,6 +166,8 @@
 			children = (
 				100000000000000000000106 /* ReminderStore.swift */,
 				10000000000000000000010E /* HotKeyController.swift */,
+				100000000000000000000114 /* AppSettingsStore.swift */,
+				100000000000000000000115 /* LaunchAtLoginController.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -162,6 +184,7 @@
 			isa = PBXGroup;
 			children = (
 				10000000000000000000010B /* QuickAddParserTests.swift */,
+				10000000000000000000011B /* AppSettingsStoreTests.swift */,
 			);
 			path = TallyTests;
 			sourceTree = "<group>";
@@ -182,6 +205,15 @@
 				100000000000000000000108 /* Tally.entitlements */,
 			);
 			path = Supporting;
+			sourceTree = "<group>";
+		};
+		10000000000000000000020D /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000116 /* SettingsView.swift */,
+				100000000000000000000117 /* ShortcutRecorderView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -295,6 +327,13 @@
 				10000000000000000000000C /* QuickAddWindowView.swift in Sources */,
 				10000000000000000000000D /* ReminderFormatting.swift in Sources */,
 				10000000000000000000000E /* HighlightedQuickAddTextField.swift in Sources */,
+				10000000000000000000000F /* AppSettings.swift in Sources */,
+				100000000000000000000010 /* AppSettingsStore.swift in Sources */,
+				100000000000000000000011 /* LaunchAtLoginController.swift in Sources */,
+				100000000000000000000012 /* SettingsView.swift in Sources */,
+				100000000000000000000013 /* ShortcutRecorderView.swift in Sources */,
+				100000000000000000000014 /* MenuBarController.swift in Sources */,
+				100000000000000000000015 /* MenuBarIconRenderer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -303,6 +342,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000008 /* QuickAddParserTests.swift in Sources */,
+				100000000000000000000017 /* AppSettingsStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

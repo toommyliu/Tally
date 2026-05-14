@@ -5,9 +5,10 @@ struct QuickAddWindowView: View {
     @State private var quickAddText = ""
     @State private var notes = ""
     @State private var isShowingTokenHelp = false
+    @State private var keepsOpenAfterAdd = false
 
     let onCancel: () -> Void
-    let onSubmit: (String, String) -> Void
+    let onSubmit: (String, String, Bool) -> Void
 
     private var parsedPreview: QuickAddFields {
         QuickAddParser.parse(quickAddText)
@@ -35,10 +36,12 @@ struct QuickAddWindowView: View {
                     .lineLimit(1...3)
 
                 QuickAddPreview(fields: parsedPreview, fallbackListTitle: reminderStore.activeListTitle)
+                    .environmentObject(reminderStore)
+                    .onInsertToken(insertToken)
             }
             .padding(.horizontal, 16)
             .padding(.top, 15)
-            .frame(height: 126, alignment: .top)
+            .frame(height: 118, alignment: .top)
 
             Divider()
 
@@ -62,6 +65,10 @@ struct QuickAddWindowView: View {
 
                 Spacer()
 
+                Toggle("Keep open", isOn: $keepsOpenAfterAdd)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: 12))
+
                 Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)
 
@@ -71,10 +78,10 @@ struct QuickAddWindowView: View {
                     .keyboardShortcut(.return, modifiers: .command)
             }
             .padding(.horizontal, 14)
-            .frame(height: 47)
+            .frame(height: 57)
             .background(.regularMaterial)
         }
-        .frame(width: 440, height: 174)
+        .frame(width: 520, height: 176)
         .background(.ultraThickMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
@@ -93,7 +100,12 @@ struct QuickAddWindowView: View {
 
         quickAddText = ""
         notes = ""
-        onSubmit(draft, noteDraft)
+        onSubmit(draft, noteDraft, keepsOpenAfterAdd)
+    }
+
+    private func insertToken(_ token: String) {
+        let separator = quickAddText.isEmpty || quickAddText.hasSuffix(" ") ? "" : " "
+        quickAddText += separator + token
     }
 }
 
@@ -111,35 +123,66 @@ private struct TokenHelpView: View {
 }
 
 private struct QuickAddPreview: View {
+    @EnvironmentObject private var reminderStore: ReminderStore
+    @Environment(\.insertQuickAddToken) private var insertToken
+
     let fields: QuickAddFields
     let fallbackListTitle: String
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                Chip(
-                    systemName: "calendar",
-                    title: fields.dueDate?.shortDisplayTitle ?? "Date",
-                    tint: .green,
-                    isPlaceholder: fields.dueDate == nil
-                )
+                Menu {
+                    Button("Today") { insertToken("today") }
+                    Button("Tomorrow") { insertToken("tomorrow") }
+                    Button("Tonight") { insertToken("tonight") }
+                    Button("Next week") { insertToken("next week") }
+                } label: {
+                    Chip(
+                        systemName: "calendar",
+                        title: fields.dueDate?.shortDisplayTitle ?? "Date",
+                        tint: .green,
+                        isPlaceholder: fields.dueDate == nil
+                    )
+                }
+                .menuStyle(.borderlessButton)
 
-                Chip(
-                    systemName: "tray",
-                    title: fields.listName ?? fallbackListTitle,
-                    tint: .purple,
-                    isPlaceholder: fields.listName == nil
-                )
+                Menu {
+                    ForEach(reminderStore.reminderListTitles, id: \.self) { listTitle in
+                        Button(listTitle) { insertToken("#\(QuickAddListTokenCodec.encode(listTitle))") }
+                    }
+                } label: {
+                    Chip(
+                        systemName: "tray",
+                        title: fields.listName ?? fallbackListTitle,
+                        tint: .purple,
+                        isPlaceholder: fields.listName == nil
+                    )
+                }
+                .menuStyle(.borderlessButton)
 
-                Chip(
-                    systemName: "flag.fill",
-                    title: fields.priority > 0 ? fields.priority.quickAddTitle : "Priority",
-                    tint: .red,
-                    isPlaceholder: fields.priority == 0
-                )
+                Menu {
+                    Button("P1") { insertToken("P1") }
+                    Button("P2") { insertToken("P2") }
+                    Button("P3") { insertToken("P3") }
+                    Button("None") { insertToken("P4") }
+                } label: {
+                    Chip(
+                        systemName: "flag.fill",
+                        title: fields.priority > 0 ? fields.priority.quickAddTitle : "Priority",
+                        tint: .red,
+                        isPlaceholder: fields.priority == 0
+                    )
+                }
+                .menuStyle(.borderlessButton)
 
                 if fields.tags.isEmpty {
-                    Chip(systemName: "tag.fill", title: "Tag", tint: .orange, isPlaceholder: true)
+                    Button {
+                        insertToken("@")
+                    } label: {
+                        Chip(systemName: "tag.fill", title: "Tag", tint: .orange, isPlaceholder: true)
+                    }
+                    .buttonStyle(.plain)
                 } else {
                     ForEach(fields.tags, id: \.self) { tag in
                         Chip(systemName: "tag.fill", title: tag, tint: .orange)
@@ -174,5 +217,22 @@ private struct Chip: View {
 
     private var foregroundStyle: Color {
         isPlaceholder ? .secondary : tint
+    }
+}
+
+private struct InsertQuickAddTokenKey: EnvironmentKey {
+    static let defaultValue: (String) -> Void = { _ in }
+}
+
+private extension EnvironmentValues {
+    var insertQuickAddToken: (String) -> Void {
+        get { self[InsertQuickAddTokenKey.self] }
+        set { self[InsertQuickAddTokenKey.self] = newValue }
+    }
+}
+
+private extension View {
+    func onInsertToken(_ action: @escaping (String) -> Void) -> some View {
+        environment(\.insertQuickAddToken, action)
     }
 }

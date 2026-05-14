@@ -212,7 +212,7 @@ final class ReminderStore: ObservableObject {
             .first(where: { calendar in
                 calendar.allowsContentModifications &&
                     calendar.title.compare(
-                        listName.replacingOccurrences(of: "_", with: " "),
+                        listName,
                         options: [.caseInsensitive, .diacriticInsensitive]
                     ) == .orderedSame
             }) {

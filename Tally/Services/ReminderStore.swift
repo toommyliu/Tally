@@ -110,7 +110,7 @@ final class ReminderStore: ObservableObject {
             reminder.calendar = writableCalendar(named: fields.listName)
             reminder.priority = fields.priority
             reminder.dueDateComponents = fields.dueDate
-            reminder.notes = combinedNotes(userNotes: notes, tags: fields.tags)
+            reminder.notes = combinedNotes(userNotes: notes, inlineNotes: fields.inlineNotes, tags: fields.tags)
 
             try eventStore.save(reminder, commit: true)
             await reload()
@@ -222,12 +222,17 @@ final class ReminderStore: ObservableObject {
         return eventStore.defaultCalendarForNewReminders()
     }
 
-    private func combinedNotes(userNotes: String?, tags: [String]) -> String? {
+    private func combinedNotes(userNotes: String?, inlineNotes: String?, tags: [String]) -> String? {
         let cleanedUserNotes = userNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedInlineNotes = inlineNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = []
 
         if let cleanedUserNotes, !cleanedUserNotes.isEmpty {
             parts.append(cleanedUserNotes)
+        }
+
+        if let cleanedInlineNotes, !cleanedInlineNotes.isEmpty {
+            parts.append(cleanedInlineNotes)
         }
 
         if !tags.isEmpty {

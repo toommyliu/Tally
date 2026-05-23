@@ -7,6 +7,7 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
     let tokens: [QuickAddToken]
     let placeholder: String
     let onSubmit: () -> Void
+    let onEscape: (NSRange) -> Bool
 
     func makeNSView(context: Context) -> HighlightedQuickAddTextFieldView {
         let view = HighlightedQuickAddTextFieldView()
@@ -51,6 +52,10 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
                 parent.onSubmit()
                 return true
+            }
+
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                return parent.onEscape(textView.selectedRange())
             }
 
             return false
@@ -157,6 +162,8 @@ final class HighlightedQuickAddTextFieldView: NSView {
             .systemOrange
         case .priority:
             .systemRed
+        case .note:
+            .systemBlue
         }
 
         return [
@@ -165,4 +172,3 @@ final class HighlightedQuickAddTextFieldView: NSView {
         ]
     }
 }
-

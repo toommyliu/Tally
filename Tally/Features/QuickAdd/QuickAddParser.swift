@@ -196,7 +196,7 @@ enum QuickAddParser {
     }
 
     private static func tokenStartsInlineNotes(_ token: ScannedToken) -> Bool {
-        token.text == "//" || token.text.hasPrefix("//")
+        token.text.hasPrefix("//")
     }
 
     private static func noteRange(from token: ScannedToken, in input: String) -> NSRange {
@@ -207,7 +207,7 @@ enum QuickAddParser {
     private static func noteText(from token: ScannedToken, in input: String) -> String? {
         let fullText = input as NSString
         let fullLength = fullText.length
-        let noteStart = token.text == "//" ? NSMaxRange(token.range) : token.range.location + 2
+        let noteStart = token.range.location + 2
 
         guard noteStart <= fullLength else {
             return nil
@@ -504,10 +504,13 @@ enum QuickAddParser {
         if normalized == "in",
            normalizedToken(at: index + 1, in: tokens) == "the",
            let period = normalizedToken(at: index + 2, in: tokens),
-           let time = fixedTime(forPeriod: period) {
-            var components = dateOnlyComponents(from: now, calendar: calendar)
-            components.hour = time.hour
-            components.minute = time.minute
+           let time = fixedTime(forPeriod: period),
+           let components = nextTimeOccurrenceComponents(
+            hour: time.hour,
+            minute: time.minute,
+            from: now,
+            calendar: calendar
+           ) {
             return ScheduleMatch(
                 components: components,
                 kind: .time,
@@ -1192,19 +1195,13 @@ enum QuickAddParser {
             return nil
         }
 
-        var components = dateOnlyComponents(from: now, calendar: calendar)
-        components.hour = parsedTime.hour
-        components.minute = parsedTime.minute
-
-        guard let candidate = calendar.date(from: components) else {
+        guard let components = nextTimeOccurrenceComponents(
+            hour: parsedTime.hour,
+            minute: parsedTime.minute,
+            from: now,
+            calendar: calendar
+        ) else {
             return nil
-        }
-
-        if candidate <= now,
-           let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) {
-            components = dateOnlyComponents(from: tomorrow, calendar: calendar)
-            components.hour = parsedTime.hour
-            components.minute = parsedTime.minute
         }
 
         return ScheduleMatch(
@@ -1306,6 +1303,30 @@ enum QuickAddParser {
         components.hour = hour
         components.minute = minute
         return (components, .time, range, endIndex)
+    }
+
+    private static func nextTimeOccurrenceComponents(
+        hour: Int,
+        minute: Int,
+        from date: Date,
+        calendar: Calendar
+    ) -> DateComponents? {
+        var components = dateOnlyComponents(from: date, calendar: calendar)
+        components.hour = hour
+        components.minute = minute
+
+        guard let candidate = calendar.date(from: components) else {
+            return nil
+        }
+
+        if candidate <= date,
+           let tomorrow = calendar.date(byAdding: .day, value: 1, to: date) {
+            components = dateOnlyComponents(from: tomorrow, calendar: calendar)
+            components.hour = hour
+            components.minute = minute
+        }
+
+        return components
     }
 
     private static func weekdayNumber(for token: String) -> Int? {

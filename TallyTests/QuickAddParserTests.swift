@@ -278,6 +278,17 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertDate(morning.dueDate, year: 2026, month: 5, day: 14, hour: 6, minute: 0)
     }
 
+    func testParsesDaypartAsNextOccurrence() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 21, minute: 0)))
+        let input = "Call Sam in the morning"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Call Sam")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 14, hour: 9, minute: 0)
+        XCTAssertToken(in: fields, originalText: input, kind: .time, equals: "in the morning")
+    }
+
     func testParsesMonthDayFormats() throws {
         let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
 

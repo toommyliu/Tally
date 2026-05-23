@@ -6,16 +6,17 @@ struct QuickAddWindowView: View {
     @State private var notes = ""
     @State private var isShowingTokenHelp = false
     @State private var keepsOpenAfterAdd = false
+    @State private var suppressedInferredTokens: [QuickAddSuppressedToken] = []
 
     let onCancel: () -> Void
     let onSubmit: (String, String, Bool) -> Void
 
     private var parsedPreview: QuickAddFields {
-        QuickAddParser.parse(quickAddText)
+        QuickAddParser.parse(quickAddText, suppressedInferredTokens: suppressedInferredTokens)
     }
 
     private let supportedNLPHelp = """
-    Supported tokens: today, tomorrow, tmr, today 3pm, today at 3:30pm, in 45 minutes, in 2 hours, in an hour, in 90m, 2h, in 3 days, next week, next monday, later today, tonight, this afternoon, #List, @tag, P1, P2, P3, P4.
+    Supported tokens: today, tomorrow, tom, tod, tmr, today 3pm, today at 3:30pm, 6pm, fri at 7pm, jan 27, 27 jan, 27th, 1/27, in 45 minutes, in three days, in a couple of days, in half an hour, +5 days, 17 days from jul 9, 6 weeks before jul 21, in 3 days, next week, next month, this weekend, next weekend, later this week, later today, tonight, this afternoon, #List, @tag, // notes, P1, P2, P3, P4.
     """
 
     var body: some View {
@@ -25,7 +26,8 @@ struct QuickAddWindowView: View {
                     text: $quickAddText,
                     tokens: parsedPreview.usedTokens,
                     placeholder: "New reminder",
-                    onSubmit: addReminder
+                    onSubmit: addReminder,
+                    onEscape: handleEscape
                 )
                 .frame(height: 25)
 
@@ -89,6 +91,15 @@ struct QuickAddWindowView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(.white.opacity(0.24), lineWidth: 1)
         }
+        .onChange(of: quickAddText) { _, newValue in
+            suppressedInferredTokens = suppressedInferredTokens.filter { suppression in
+                guard NSMaxRange(suppression.range) <= (newValue as NSString).length else {
+                    return false
+                }
+
+                return (newValue as NSString).substring(with: suppression.range) == suppression.text
+            }
+        }
     }
 
     private func addReminder() {
@@ -101,7 +112,45 @@ struct QuickAddWindowView: View {
 
         quickAddText = ""
         notes = ""
+        suppressedInferredTokens = []
         onSubmit(draft, noteDraft, keepsOpenAfterAdd)
+    }
+
+    private func handleEscape(selectedRange: NSRange) -> Bool {
+        if dismissInferredToken(at: selectedRange) {
+            return true
+        }
+
+        onCancel()
+        return true
+    }
+
+    private func dismissInferredToken(at selectedRange: NSRange) -> Bool {
+        let token = parsedPreview.usedTokens.first { token in
+            guard token.source == .inferred,
+                  token.kind == .date || token.kind == .time else {
+                return false
+            }
+
+            if selectedRange.length > 0 {
+                return NSIntersectionRange(token.range, selectedRange).length > 0
+            }
+
+            return NSLocationInRange(selectedRange.location, token.range) ||
+                selectedRange.location == NSMaxRange(token.range)
+        }
+
+        guard let token,
+              NSMaxRange(token.range) <= (quickAddText as NSString).length else {
+            return false
+        }
+
+        suppressedInferredTokens.append(QuickAddSuppressedToken(
+            kind: token.kind,
+            range: token.range,
+            text: (quickAddText as NSString).substring(with: token.range)
+        ))
+        return true
     }
 
     private func insertToken(_ token: String) {

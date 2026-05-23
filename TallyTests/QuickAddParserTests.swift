@@ -164,6 +164,53 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertToken(in: fields, originalText: input, kind: .time, equals: "in an hour")
     }
 
+    func testParsesSpelledRelativeDuration() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+        let input = "Follow up in three days"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Follow up")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 16, hour: nil, minute: nil)
+        XCTAssertToken(in: fields, originalText: input, kind: .date, equals: "in three days")
+    }
+
+    func testParsesCompoundSpelledRelativeDuration() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+
+        let spaced = QuickAddParser.parse("Submit form in twenty one days", calendar: calendar, now: now)
+        XCTAssertEqual(spaced.title, "Submit form")
+        XCTAssertDate(spaced.dueDate, year: 2026, month: 6, day: 3, hour: nil, minute: nil)
+
+        let hyphenated = QuickAddParser.parse("Submit form in twenty-one days", calendar: calendar, now: now)
+        XCTAssertEqual(hyphenated.title, "Submit form")
+        XCTAssertDate(hyphenated.dueDate, year: 2026, month: 6, day: 3, hour: nil, minute: nil)
+    }
+
+    func testParsesFuzzyRelativeDurationAmounts() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+
+        let couple = QuickAddParser.parse("Check back in a couple of days", calendar: calendar, now: now)
+        XCTAssertEqual(couple.title, "Check back")
+        XCTAssertDate(couple.dueDate, year: 2026, month: 5, day: 15, hour: nil, minute: nil)
+
+        let few = QuickAddParser.parse("Check back in a few hours", calendar: calendar, now: now)
+        XCTAssertEqual(few.title, "Check back")
+        XCTAssertDate(few.dueDate, year: 2026, month: 5, day: 13, hour: 12, minute: 15)
+    }
+
+    func testParsesHalfRelativeDurations() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+
+        let halfHour = QuickAddParser.parse("Move laundry in half an hour", calendar: calendar, now: now)
+        XCTAssertEqual(halfHour.title, "Move laundry")
+        XCTAssertDate(halfHour.dueDate, year: 2026, month: 5, day: 13, hour: 9, minute: 45)
+
+        let halfDay = QuickAddParser.parse("Check process in half a day", calendar: calendar, now: now)
+        XCTAssertEqual(halfDay.title, "Check process")
+        XCTAssertDate(halfDay.dueDate, year: 2026, month: 5, day: 13, hour: 21, minute: 15)
+    }
+
     func testParsesBareRelativeDuration() throws {
         let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
         let input = "Check upload 2h"
@@ -195,6 +242,150 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertEqual(fields.title, "Book flight")
         XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 18, hour: nil, minute: nil)
         XCTAssertToken(in: fields, originalText: input, kind: .date, equals: "next monday")
+    }
+
+    func testParsesTodoistStyleDateAliasesAndTime() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+        let input = "Pay rent tom 9am"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Pay rent")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 14, hour: 9, minute: 0)
+        XCTAssertToken(in: fields, originalText: input, kind: .time, equals: "tom 9am")
+    }
+
+    func testParsesBareWeekdayWithTime() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+        let input = "Ship deck fri at 7pm"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Ship deck")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 15, hour: 19, minute: 0)
+        XCTAssertToken(in: fields, originalText: input, kind: .time, equals: "fri at 7pm")
+    }
+
+    func testParsesTimeOnlyAsNextOccurrence() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+
+        let evening = QuickAddParser.parse("Dinner 6pm", calendar: calendar, now: now)
+        XCTAssertEqual(evening.title, "Dinner")
+        XCTAssertDate(evening.dueDate, year: 2026, month: 5, day: 13, hour: 18, minute: 0)
+
+        let morning = QuickAddParser.parse("Coffee 6am", calendar: calendar, now: now)
+        XCTAssertEqual(morning.title, "Coffee")
+        XCTAssertDate(morning.dueDate, year: 2026, month: 5, day: 14, hour: 6, minute: 0)
+    }
+
+    func testParsesDaypartAsNextOccurrence() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 21, minute: 0)))
+        let input = "Call Sam in the morning"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Call Sam")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 14, hour: 9, minute: 0)
+        XCTAssertToken(in: fields, originalText: input, kind: .time, equals: "in the morning")
+    }
+
+    func testParsesMonthDayFormats() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+
+        let namedMonth = QuickAddParser.parse("Book venue jan 27", calendar: calendar, now: now)
+        XCTAssertEqual(namedMonth.title, "Book venue")
+        XCTAssertDate(namedMonth.dueDate, year: 2027, month: 1, day: 27, hour: nil, minute: nil)
+
+        let reversedMonth = QuickAddParser.parse("Book venue 27 jan", calendar: calendar, now: now)
+        XCTAssertEqual(reversedMonth.title, "Book venue")
+        XCTAssertDate(reversedMonth.dueDate, year: 2027, month: 1, day: 27, hour: nil, minute: nil)
+
+        let ordinalDay = QuickAddParser.parse("Send invoice 27th", calendar: calendar, now: now)
+        XCTAssertEqual(ordinalDay.title, "Send invoice")
+        XCTAssertDate(ordinalDay.dueDate, year: 2026, month: 5, day: 27, hour: nil, minute: nil)
+
+        let slashDate = QuickAddParser.parse("Renew permit 1/27", calendar: calendar, now: now)
+        XCTAssertEqual(slashDate.title, "Renew permit")
+        XCTAssertDate(slashDate.dueDate, year: 2027, month: 1, day: 27, hour: nil, minute: nil)
+    }
+
+    func testParsesWeekendAndLongerRelativeDates() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+
+        let laterThisWeek = QuickAddParser.parse("Prep memo later this week", calendar: calendar, now: now)
+        XCTAssertEqual(laterThisWeek.title, "Prep memo")
+        XCTAssertDate(laterThisWeek.dueDate, year: 2026, month: 5, day: 15, hour: nil, minute: nil)
+
+        let thisWeekend = QuickAddParser.parse("Pack this weekend", calendar: calendar, now: now)
+        XCTAssertEqual(thisWeekend.title, "Pack")
+        XCTAssertDate(thisWeekend.dueDate, year: 2026, month: 5, day: 16, hour: nil, minute: nil)
+
+        let nextWeekend = QuickAddParser.parse("Pack next weekend", calendar: calendar, now: now)
+        XCTAssertEqual(nextWeekend.title, "Pack")
+        XCTAssertDate(nextWeekend.dueDate, year: 2026, month: 5, day: 23, hour: nil, minute: nil)
+
+        let nextMonth = QuickAddParser.parse("Review budget next month", calendar: calendar, now: now)
+        XCTAssertEqual(nextMonth.title, "Review budget")
+        XCTAssertDate(nextMonth.dueDate, year: 2026, month: 6, day: 13, hour: nil, minute: nil)
+    }
+
+    func testParsesDateMath() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+
+        let signedRelative = QuickAddParser.parse("Follow up +5 days", calendar: calendar, now: now)
+        XCTAssertEqual(signedRelative.title, "Follow up")
+        XCTAssertDate(signedRelative.dueDate, year: 2026, month: 5, day: 18, hour: nil, minute: nil)
+
+        let daysFrom = QuickAddParser.parse("Check contract 17 days from jul 9", calendar: calendar, now: now)
+        XCTAssertEqual(daysFrom.title, "Check contract")
+        XCTAssertDate(daysFrom.dueDate, year: 2026, month: 7, day: 26, hour: nil, minute: nil)
+
+        let weeksBefore = QuickAddParser.parse("Start prep 6 weeks before jul 21", calendar: calendar, now: now)
+        XCTAssertEqual(weeksBefore.title, "Start prep")
+        XCTAssertDate(weeksBefore.dueDate, year: 2026, month: 6, day: 9, hour: nil, minute: nil)
+    }
+
+    func testParsesInlineNotes() throws {
+        let fields = QuickAddParser.parse("Call Sam tom // ask about renewal")
+
+        XCTAssertEqual(fields.title, "Call Sam")
+        XCTAssertEqual(fields.inlineNotes, "ask about renewal")
+        XCTAssertNotNil(fields.dueDate)
+        XCTAssertToken(in: fields, originalText: "Call Sam tom // ask about renewal", kind: .note, equals: "// ask about renewal")
+    }
+
+    func testLeavesAmbiguousRecurrenceWordsAsTitleText() throws {
+        let monthly = QuickAddParser.parse("Create monthly report")
+        XCTAssertEqual(monthly.title, "Create monthly report")
+        XCTAssertNil(monthly.dueDate)
+
+        let daily = QuickAddParser.parse("Review daily checklist")
+        XCTAssertEqual(daily.title, "Review daily checklist")
+        XCTAssertNil(daily.dueDate)
+    }
+
+    func testCanSuppressInferredDateToken() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
+        let input = "Dinner 6pm"
+        let parsed = QuickAddParser.parse(input, calendar: calendar, now: now)
+        let token = try XCTUnwrap(parsed.usedTokens.first)
+
+        let suppressed = QuickAddParser.parse(
+            input,
+            calendar: calendar,
+            now: now,
+            suppressedInferredTokens: [
+                QuickAddSuppressedToken(
+                    kind: token.kind,
+                    range: token.range,
+                    text: (input as NSString).substring(with: token.range)
+                )
+            ]
+        )
+
+        XCTAssertEqual(suppressed.title, "Dinner 6pm")
+        XCTAssertNil(suppressed.dueDate)
+        XCTAssertTrue(suppressed.usedTokens.isEmpty)
     }
 
     private func XCTAssertDate(

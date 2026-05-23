@@ -154,17 +154,20 @@ final class MenuBarController: NSObject {
     private func reminderActionsMenu(for reminder: ReminderItem) -> NSMenu {
         let menu = NSMenu()
 
-        let openItem = NSMenuItem(title: "Open in Reminders", action: #selector(openReminder(_:)), keyEquivalent: "")
+        let openItem = NSMenuItem(title: "Open in Reminders", action: #selector(openReminder(_:)), keyEquivalent: "1")
+        openItem.keyEquivalentModifierMask = []
         openItem.target = self
         openItem.representedObject = reminder.id
         menu.addItem(openItem)
 
-        let completeItem = NSMenuItem(title: "Complete", action: #selector(completeReminder(_:)), keyEquivalent: "")
+        let completeItem = NSMenuItem(title: "Complete", action: #selector(completeReminder(_:)), keyEquivalent: "2")
+        completeItem.keyEquivalentModifierMask = []
         completeItem.target = self
         completeItem.representedObject = reminder.id
         menu.addItem(completeItem)
 
-        let deleteItem = NSMenuItem(title: "Delete", action: #selector(deleteReminder(_:)), keyEquivalent: "")
+        let deleteItem = NSMenuItem(title: "Delete", action: #selector(deleteReminder(_:)), keyEquivalent: "3")
+        deleteItem.keyEquivalentModifierMask = []
         deleteItem.target = self
         deleteItem.representedObject = reminder.id
         menu.addItem(deleteItem)
@@ -458,7 +461,30 @@ private final class TrayMenu: NSMenu {
             return false
         }
 
+        if let item = highlightedSubmenuItem(matching: event) {
+            cancelTracking()
+            performAction(for: item)
+            return true
+        }
+
+        if hasSubmenuKeyEquivalent(for: event) {
+            return false
+        }
+
         return super.performKeyEquivalent(with: event)
+    }
+
+    private func highlightedSubmenuItem(matching event: NSEvent) -> NSMenuItem? {
+        highlightedItem?
+            .submenu?
+            .items
+            .first(where: { $0.matchesKeyEquivalent(event) })
+    }
+
+    private func hasSubmenuKeyEquivalent(for event: NSEvent) -> Bool {
+        items.contains { item in
+            item.submenu?.items.contains { $0.hasKeyEquivalentKey(for: event) } ?? false
+        }
     }
 
     private func performAction(for item: NSMenuItem) {

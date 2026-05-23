@@ -27,7 +27,6 @@
 		100000000000000000000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000116 /* SettingsView.swift */; };
 		100000000000000000000013 /* ShortcutRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000117 /* ShortcutRecorderView.swift */; };
 		100000000000000000000014 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000118 /* MenuBarController.swift */; };
-		100000000000000000000015 /* MenuBarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000119 /* MenuBarIconRenderer.swift */; };
 		100000000000000000000017 /* AppSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011B /* AppSettingsStoreTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -66,7 +65,6 @@
 		100000000000000000000116 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		100000000000000000000117 /* ShortcutRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorderView.swift; sourceTree = "<group>"; };
 		100000000000000000000118 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
-		100000000000000000000119 /* MenuBarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconRenderer.swift; sourceTree = "<group>"; };
 		10000000000000000000011B /* AppSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -135,7 +133,6 @@
 				100000000000000000000102 /* MenuBarView.swift */,
 				100000000000000000000103 /* MenuBarIcon.swift */,
 				100000000000000000000118 /* MenuBarController.swift */,
-				100000000000000000000119 /* MenuBarIconRenderer.swift */,
 			);
 			path = MenuBar;
 			sourceTree = "<group>";
@@ -333,7 +330,6 @@
 				100000000000000000000012 /* SettingsView.swift in Sources */,
 				100000000000000000000013 /* ShortcutRecorderView.swift in Sources */,
 				100000000000000000000014 /* MenuBarController.swift in Sources */,
-				100000000000000000000015 /* MenuBarIconRenderer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

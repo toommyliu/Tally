@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var reminderStore: ReminderStore
     @EnvironmentObject private var settingsStore: AppSettingsStore
     @EnvironmentObject private var launchAtLoginController: LaunchAtLoginController
@@ -9,7 +10,7 @@ struct SettingsView: View {
     let onTrayShortcutChange: (GlobalShortcut) -> Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             settingsSection("Menu Bar") {
                 settingRow("Badge") {
                     Picker("Badge", selection: $settingsStore.badgeStyle) {
@@ -53,6 +54,7 @@ struct SettingsView: View {
                         await reminderStore.reload()
                     }
                 }
+                .tallySecondaryButtonStyle()
             }
 
             settingsSection("Startup") {
@@ -75,7 +77,8 @@ struct SettingsView: View {
             Spacer(minLength: 0)
         }
         .padding(24)
-        .frame(width: 430, height: 340, alignment: .topLeading)
+        .frame(width: 460, height: 374, alignment: .topLeading)
+        .background(.regularMaterial)
     }
 
     private func shortcutRow(
@@ -108,8 +111,15 @@ struct SettingsView: View {
                     storeShortcut(defaultShortcut)
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 26, height: 24)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .background(resetButtonFill(isDisabled: shortcut == defaultShortcut), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.055), lineWidth: 0.75)
+                }
                 .disabled(shortcut == defaultShortcut)
                 .help("Reset shortcut")
             }
@@ -122,11 +132,15 @@ struct SettingsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.headline)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 10) {
                 content()
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .tallyInsetGlassSurface()
         }
     }
 
@@ -136,9 +150,16 @@ struct SettingsView: View {
     ) -> some View {
         HStack {
             Text(title)
+                .foregroundStyle(.primary)
             Spacer()
             content()
         }
+        .font(.system(size: 13))
+        .frame(minHeight: 28)
+    }
+
+    private func resetButtonFill(isDisabled: Bool) -> Color {
+        Color.primary.opacity(isDisabled ? 0.035 : 0.075)
     }
 }
 

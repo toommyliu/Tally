@@ -235,7 +235,7 @@ private final class MenuBarStatusView: NSView {
     private static let iconWidth: CGFloat = 20
     private static let iconHeight: CGFloat = 18
     private static let iconCountSpacing: CGFloat = 4
-    private static let badgeIconOverlap: CGFloat = 5
+    private static let badgeIconOverlap: CGFloat = 6
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -325,7 +325,7 @@ private final class MenuBarStatusView: NSView {
         let textSize = attributedText.size()
         attributedText.draw(at: NSPoint(
             x: iconRect.maxX + iconCountSpacing,
-            y: iconRect.midY - textSize.height / 2
+            y: floor(iconRect.midY - textSize.height / 2)
         ))
     }
 
@@ -335,12 +335,12 @@ private final class MenuBarStatusView: NSView {
         let badgeHeight = badgeSize(for: count).height
         let badgeRect = NSRect(
             x: iconRect.maxX - badgeIconOverlap,
-            y: iconRect.maxY - badgeHeight,
+            y: iconRect.maxY - badgeHeight + 1,
             width: badgeWidth,
             height: badgeHeight
         )
         let badgePath = NSBezierPath(roundedRect: badgeRect, xRadius: badgeHeight / 2, yRadius: badgeHeight / 2)
-        NSColor.labelColor.withAlphaComponent(0.94).setFill()
+        NSColor.controlAccentColor.withAlphaComponent(0.96).setFill()
         badgePath.fill()
 
         let attributedText = NSAttributedString(string: text, attributes: badgeTextAttributes)
@@ -365,23 +365,23 @@ private final class MenuBarStatusView: NSView {
 
     private static func badgeSize(for count: Int) -> NSSize {
         if count > 99 {
-            return NSSize(width: 18, height: 10)
+            return NSSize(width: 19, height: 11)
         }
 
-        return count > 9 ? NSSize(width: 14, height: 10) : NSSize(width: 11, height: 11)
+        return count > 9 ? NSSize(width: 15, height: 11) : NSSize(width: 12, height: 12)
     }
 
     private static var countTextAttributes: [NSAttributedString.Key: Any] {
         [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular),
-            .foregroundColor: NSColor.labelColor
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .medium),
+            .foregroundColor: NSColor.labelColor.withAlphaComponent(0.90)
         ]
     }
 
     private static var badgeTextAttributes: [NSAttributedString.Key: Any] {
         [
             .font: NSFont.systemFont(ofSize: 7, weight: .bold),
-            .foregroundColor: NSColor.windowBackgroundColor
+            .foregroundColor: NSColor.white
         ]
     }
 }

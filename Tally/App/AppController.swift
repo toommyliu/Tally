@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 final class AppController: NSObject, NSWindowDelegate {
-    private static let settingsWindowSize = NSSize(width: 430, height: 340)
+    private static let settingsWindowSize = NSSize(width: 460, height: 374)
 
     private var didConfigure = false
     private var reminderStore: ReminderStore?
@@ -139,12 +139,13 @@ final class AppController: NSObject, NSWindowDelegate {
             defer: false
         )
         window.title = "Settings"
-        window.contentViewController = NSHostingController(rootView: contentView)
+        window.contentViewController = NSHostingController.tallyClearBackground(rootView: contentView)
         window.delegate = self
         window.setContentSize(Self.settingsWindowSize)
         window.contentMinSize = Self.settingsWindowSize
         window.contentMaxSize = Self.settingsWindowSize
         window.isReleasedWhenClosed = false
+        window.contentView?.prepareForTallyTransparentWindow()
         return window
     }
 }

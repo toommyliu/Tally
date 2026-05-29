@@ -28,6 +28,9 @@
 		100000000000000000000013 /* ShortcutRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000117 /* ShortcutRecorderView.swift */; };
 		100000000000000000000014 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000118 /* MenuBarController.swift */; };
 		100000000000000000000017 /* AppSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011B /* AppSettingsStoreTests.swift */; };
+		100000000000000000000018 /* QuickAddDueDateTokenEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */; };
+		100000000000000000000019 /* DueDatePickerPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011D /* DueDatePickerPopover.swift */; };
+		10000000000000000000001A /* TallyChromeStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011E /* TallyChromeStyle.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,6 +69,9 @@
 		100000000000000000000117 /* ShortcutRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorderView.swift; sourceTree = "<group>"; };
 		100000000000000000000118 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		10000000000000000000011B /* AppSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStoreTests.swift; sourceTree = "<group>"; };
+		10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddDueDateTokenEditor.swift; sourceTree = "<group>"; };
+		10000000000000000000011D /* DueDatePickerPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DueDatePickerPopover.swift; sourceTree = "<group>"; };
+		10000000000000000000011E /* TallyChromeStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TallyChromeStyle.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,6 +128,7 @@
 			children = (
 				100000000000000000000205 /* MenuBar */,
 				100000000000000000000206 /* QuickAdd */,
+				10000000000000000000011E /* TallyChromeStyle.swift */,
 				10000000000000000000020D /* Settings */,
 			);
 			path = Features;
@@ -141,6 +148,8 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000104 /* QuickAddParser.swift */,
+				10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */,
+				10000000000000000000011D /* DueDatePickerPopover.swift */,
 				100000000000000000000112 /* HighlightedQuickAddTextField.swift */,
 				10000000000000000000010F /* QuickAddWindowController.swift */,
 				100000000000000000000110 /* QuickAddWindowView.swift */,
@@ -316,6 +325,8 @@
 				100000000000000000000002 /* MenuBarView.swift in Sources */,
 				100000000000000000000003 /* MenuBarIcon.swift in Sources */,
 				100000000000000000000004 /* QuickAddParser.swift in Sources */,
+				100000000000000000000018 /* QuickAddDueDateTokenEditor.swift in Sources */,
+				100000000000000000000019 /* DueDatePickerPopover.swift in Sources */,
 				100000000000000000000005 /* ReminderItem.swift in Sources */,
 				100000000000000000000006 /* ReminderStore.swift in Sources */,
 				100000000000000000000009 /* AppController.swift in Sources */,
@@ -330,6 +341,7 @@
 				100000000000000000000012 /* SettingsView.swift in Sources */,
 				100000000000000000000013 /* ShortcutRecorderView.swift in Sources */,
 				100000000000000000000014 /* MenuBarController.swift in Sources */,
+				10000000000000000000001A /* TallyChromeStyle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

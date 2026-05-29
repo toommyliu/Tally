@@ -16,7 +16,7 @@ struct MenuBarIcon: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 3)
                     .frame(minWidth: 12, minHeight: 12)
-                    .background(.red, in: Capsule())
+                    .background(Color.accentColor, in: Capsule())
                     .offset(x: 7, y: -6)
             }
         }

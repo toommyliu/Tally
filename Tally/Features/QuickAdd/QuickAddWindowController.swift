@@ -3,7 +3,10 @@ import SwiftUI
 
 @MainActor
 final class QuickAddWindowController: NSObject, NSWindowDelegate {
-    private static let windowSize = NSSize(width: 520, height: 176)
+    private static let windowSize = NSSize(
+        width: TallyChrome.quickAddWindowSize.width,
+        height: TallyChrome.quickAddWindowSize.height
+    )
 
     private let reminderStore: ReminderStore
     private var window: NSWindow?
@@ -79,7 +82,7 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
 
-        panel.contentViewController = NSHostingController(rootView: contentView)
+        panel.contentViewController = NSHostingController.tallyClearBackground(rootView: contentView)
         panel.delegate = self
         panel.setContentSize(Self.windowSize)
         panel.contentMinSize = Self.windowSize
@@ -91,7 +94,8 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = true
+        panel.hasShadow = false
+        panel.contentView?.prepareForTallyTransparentWindow()
 
         return panel
     }

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct QuickAddWindowView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var reminderStore: ReminderStore
     @State private var quickAddText = ""
     @State private var notes = ""
@@ -21,7 +22,7 @@ struct QuickAddWindowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 11) {
                 HighlightedQuickAddTextField(
                     text: $quickAddText,
                     tokens: parsedPreview.usedTokens,
@@ -40,13 +41,15 @@ struct QuickAddWindowView: View {
                 QuickAddPreview(fields: parsedPreview, fallbackListTitle: reminderStore.activeListTitle)
                     .environmentObject(reminderStore)
                     .onInsertToken(insertToken)
-                    .onSelectDate(setDueDate)
+                    .onApplyDueDateSelection(applyDueDateSelection)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 15)
-            .frame(height: 118, alignment: .top)
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 14)
+            .frame(height: 129, alignment: .top)
 
             Divider()
+                .overlay(Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.08))
 
             HStack(spacing: 8) {
                 Button {
@@ -54,7 +57,8 @@ struct QuickAddWindowView: View {
                 } label: {
                     Image(systemName: "questionmark.circle")
                         .font(.system(size: 13, weight: .medium))
-                        .frame(width: 24, height: 24)
+                        .frame(width: 28, height: 28)
+                        .background(.secondary.opacity(isShowingTokenHelp ? 0.12 : 0), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -73,24 +77,27 @@ struct QuickAddWindowView: View {
                     .font(.system(size: 12))
 
                 Button("Cancel", action: onCancel)
+                    .tallySecondaryButtonStyle()
                     .keyboardShortcut(.cancelAction)
 
                 Button("Add task", action: addReminder)
-                    .buttonStyle(.borderedProminent)
+                    .tallyPrimaryButtonStyle()
                     .disabled(parsedPreview.title.isEmpty || reminderStore.isSaving)
                     .keyboardShortcut(.return, modifiers: .command)
             }
-            .padding(.horizontal, 14)
-            .frame(height: 57)
-            .background(.regularMaterial)
+            .padding(.horizontal, 18)
+            .frame(height: 58)
+            .background(Color.primary.opacity(colorScheme == .dark ? 0.035 : 0.026))
         }
-        .frame(width: 520, height: 176)
-        .background(.ultraThickMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(.white.opacity(0.24), lineWidth: 1)
-        }
+        .frame(width: TallyChrome.quickAddWindowSize.width, height: TallyChrome.quickAddWindowSize.height)
+        .tallyChromeSurface(
+            cornerRadius: TallyChrome.panelCornerRadius,
+            material: .regularMaterial,
+            strokeOpacity: 0.16,
+            shadowOpacity: 0.22,
+            shadowRadius: 34,
+            shadowY: 16
+        )
         .onChange(of: quickAddText) { _, newValue in
             suppressedInferredTokens = suppressedInferredTokens.filter { suppression in
                 guard NSMaxRange(suppression.range) <= (newValue as NSString).length else {
@@ -158,25 +165,12 @@ struct QuickAddWindowView: View {
         quickAddText += separator + token
     }
 
-    private func setDueDate(_ date: Date) {
-        let token = Self.dateToken(for: date)
-        let fields = QuickAddParser.parse(quickAddText)
-
-        if let existingDateToken = fields.usedTokens.first(where: { $0.kind == .date }),
-           let range = Range(existingDateToken.range, in: quickAddText) {
-            quickAddText.replaceSubrange(range, with: token)
-        } else {
-            insertToken(token)
-        }
-    }
-
-    private static func dateToken(for date: Date) -> String {
-        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        let year = components.year ?? 0
-        let month = components.month ?? 1
-        let day = components.day ?? 1
-
-        return String(format: "%04d-%02d-%02d", year, month, day)
+    private func applyDueDateSelection(_ selection: QuickAddDueDateSelection?) {
+        quickAddText = QuickAddDueDateTokenEditor.applying(
+            selection,
+            to: quickAddText,
+            suppressedInferredTokens: suppressedInferredTokens
+        )
     }
 }
 
@@ -196,61 +190,48 @@ private struct TokenHelpView: View {
 private struct QuickAddPreview: View {
     @EnvironmentObject private var reminderStore: ReminderStore
     @Environment(\.insertQuickAddToken) private var insertToken
-    @Environment(\.selectQuickAddDate) private var selectDate
+    @Environment(\.applyQuickAddDueDateSelection) private var applyDueDateSelection
 
     let fields: QuickAddFields
     let fallbackListTitle: String
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                DatePickerChip(fields: fields, onSelectDate: selectDate)
+            HStack(spacing: 8) {
+                DatePickerChip(fields: fields, onApplySelection: applyDueDateSelection)
 
-                Menu {
-                    ForEach(reminderStore.reminderListTitles, id: \.self) { listTitle in
-                        Button(listTitle) { insertToken("#\(QuickAddListTokenCodec.encode(listTitle))") }
+                ListPickerChip(
+                    title: fields.listName ?? fallbackListTitle,
+                    isPlaceholder: fields.listName == nil,
+                    listTitles: reminderStore.reminderListTitles,
+                    onSelect: { listTitle in
+                        insertToken("#\(QuickAddListTokenCodec.encode(listTitle))")
                     }
-                } label: {
-                    Chip(
-                        systemName: "tray",
-                        title: fields.listName ?? fallbackListTitle,
-                        tint: .purple,
-                        isPlaceholder: fields.listName == nil
-                    )
-                }
-                .menuStyle(.borderlessButton)
+                )
 
-                Menu {
-                    Button("P1") { insertToken("P1") }
-                    Button("P2") { insertToken("P2") }
-                    Button("P3") { insertToken("P3") }
-                    Button("None") { insertToken("P4") }
-                } label: {
-                    Chip(
-                        systemName: "flag.fill",
-                        title: fields.priority > 0 ? fields.priority.quickAddTitle : "Priority",
-                        tint: .red,
-                        isPlaceholder: fields.priority == 0
-                    )
-                }
-                .menuStyle(.borderlessButton)
+                PriorityPickerChip(
+                    priority: fields.priority,
+                    onSelect: { token in
+                        insertToken(token)
+                    }
+                )
 
                 if fields.tags.isEmpty {
                     Button {
                         insertToken("@")
                     } label: {
-                        Chip(systemName: "tag.fill", title: "Tag", tint: .orange, isPlaceholder: true)
+                        QuickAddChip(systemName: "tag.fill", title: "Tag", tint: .orange, isPlaceholder: true)
                     }
                     .buttonStyle(.plain)
                 } else {
                     ForEach(fields.tags, id: \.self) { tag in
-                        Chip(systemName: "tag.fill", title: tag, tint: .orange)
+                        QuickAddChip(systemName: "tag.fill", title: tag, tint: .orange, isInteractive: false)
                     }
                 }
             }
-            .frame(height: 27)
+            .frame(height: 30)
         }
-        .frame(height: 27)
+        .frame(height: 30)
     }
 }
 
@@ -258,13 +239,13 @@ private struct DatePickerChip: View {
     @State private var isShowingPicker = false
 
     let fields: QuickAddFields
-    let onSelectDate: (Date) -> Void
+    let onApplySelection: (QuickAddDueDateSelection?) -> Void
 
     var body: some View {
         Button {
             isShowingPicker.toggle()
         } label: {
-            Chip(
+            QuickAddChip(
                 systemName: "calendar",
                 title: fields.dueDate?.shortDisplayTitle ?? "Date",
                 tint: .green,
@@ -273,52 +254,278 @@ private struct DatePickerChip: View {
         }
         .buttonStyle(.plain)
         .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
-            DatePicker(
-                "Due date",
-                selection: Binding(
-                    get: { selectedDate },
-                    set: { date in
-                        onSelectDate(date)
-                        isShowingPicker = false
-                    }
-                ),
-                displayedComponents: .date
+            DueDatePickerPopover(
+                initialComponents: fields.dueDate,
+                onCancel: {
+                    isShowingPicker = false
+                },
+                onClear: {
+                    onApplySelection(nil)
+                    isShowingPicker = false
+                },
+                onDone: { selection in
+                    onApplySelection(selection)
+                    isShowingPicker = false
+                }
             )
-            .datePickerStyle(.graphical)
-            .labelsHidden()
-            .padding(12)
         }
-    }
-
-    private var selectedDate: Date {
-        guard let dueDate = fields.dueDate,
-              let date = Calendar.current.date(from: dueDate)
-        else {
-            return Date()
-        }
-
-        return date
     }
 }
 
-private struct Chip: View {
+private struct ListPickerChip: View {
+    @State private var isShowingPicker = false
+
+    let title: String
+    let isPlaceholder: Bool
+    let listTitles: [String]
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        Button {
+            isShowingPicker.toggle()
+        } label: {
+            QuickAddChip(
+                systemName: "tray",
+                title: title,
+                tint: .purple,
+                isPlaceholder: isPlaceholder,
+                showsChevron: true
+            )
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
+            QuickAddListPickerPopover(
+                listTitles: listTitles,
+                onSelect: { listTitle in
+                    onSelect(listTitle)
+                    isShowingPicker = false
+                }
+            )
+        }
+        .accessibilityLabel("Reminder list")
+    }
+}
+
+private struct PriorityPickerChip: View {
+    @State private var isShowingPicker = false
+
+    let priority: Int
+    let onSelect: (String) -> Void
+
+    private var isPlaceholder: Bool {
+        priority == 0
+    }
+
+    var body: some View {
+        Button {
+            isShowingPicker.toggle()
+        } label: {
+            QuickAddChip(
+                systemName: "flag.fill",
+                title: isPlaceholder ? "Priority" : priority.quickAddTitle,
+                tint: .red,
+                isPlaceholder: isPlaceholder,
+                showsChevron: true
+            )
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
+            QuickAddPriorityPickerPopover(
+                selectedPriority: priority,
+                onSelect: { token in
+                    onSelect(token)
+                    isShowingPicker = false
+                }
+            )
+        }
+        .accessibilityLabel("Priority")
+    }
+}
+
+private struct QuickAddListPickerPopover: View {
+    let listTitles: [String]
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        QuickAddPickerPanel {
+            if listTitles.isEmpty {
+                Text("No writable lists")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
+            } else {
+                ForEach(listTitles, id: \.self) { listTitle in
+                    Button {
+                        onSelect(listTitle)
+                    } label: {
+                        QuickAddPickerRow(
+                            systemName: "tray",
+                            title: listTitle,
+                            tint: .purple,
+                            isSelected: false
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct QuickAddPriorityPickerPopover: View {
+    let selectedPriority: Int
+    let onSelect: (String) -> Void
+
+    private let options = [
+        QuickAddPriorityOption(title: "P1", token: "P1", value: 1),
+        QuickAddPriorityOption(title: "P2", token: "P2", value: 5),
+        QuickAddPriorityOption(title: "P3", token: "P3", value: 9),
+        QuickAddPriorityOption(title: "None", token: "P4", value: 0)
+    ]
+
+    var body: some View {
+        QuickAddPickerPanel {
+            ForEach(options) { option in
+                Button {
+                    onSelect(option.token)
+                } label: {
+                    QuickAddPickerRow(
+                        systemName: option.value == 0 ? "flag" : "flag.fill",
+                        title: option.title,
+                        tint: .red,
+                        isSelected: option.value == selectedPriority
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct QuickAddPriorityOption: Identifiable {
+    let title: String
+    let token: String
+    let value: Int
+
+    var id: String {
+        token
+    }
+}
+
+private struct QuickAddPickerPanel<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                content
+            }
+            .padding(6)
+        }
+        .frame(width: 190)
+        .frame(maxHeight: 220)
+    }
+}
+
+private struct QuickAddPickerRow: View {
+    @State private var isHovering = false
+
+    let systemName: String
+    let title: String
+    let tint: Color
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .frame(width: 15)
+
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+
+            Spacer(minLength: 10)
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+            }
+        }
+        .foregroundStyle(isSelected ? tint : Color.primary)
+        .padding(.horizontal, 9)
+        .frame(height: 30)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .onHover { isHovering = $0 }
+    }
+
+    private var rowBackground: Color {
+        if isSelected {
+            return tint.opacity(isHovering ? 0.18 : 0.12)
+        }
+
+        return Color.primary.opacity(isHovering ? 0.07 : 0)
+    }
+}
+
+private struct QuickAddChip: View {
     let systemName: String
     let title: String
     let tint: Color
     var isPlaceholder = false
+    var showsChevron = false
+    var isInteractive = true
 
     var body: some View {
-        Label(title, systemImage: systemName)
-            .font(.system(size: 12, weight: .medium))
-            .labelStyle(.titleAndIcon)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(backgroundStyle, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .foregroundStyle(foregroundStyle)
+        QuickAddChipContent(
+            systemName: systemName,
+            title: title,
+            tint: tint,
+            isPlaceholder: isPlaceholder,
+            showsChevron: showsChevron
+        )
+        .quickAddChipSurface(tint: tint, isPlaceholder: isPlaceholder, isInteractive: isInteractive)
     }
+}
 
-    private var backgroundStyle: Color {
-        isPlaceholder ? .secondary.opacity(0.10) : tint.opacity(0.14)
+private struct QuickAddChipContent: View {
+    let systemName: String
+    let title: String
+    let tint: Color
+    let isPlaceholder: Bool
+    var showsChevron = false
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+
+            Text(title)
+                .lineLimit(1)
+
+            if showsChevron {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .padding(.leading, -1)
+                    .opacity(0.82)
+            }
+        }
+        .font(.system(size: 12, weight: .medium))
+        .padding(.horizontal, 9)
+        .frame(height: 28)
+        .foregroundStyle(foregroundStyle)
     }
 
     private var foregroundStyle: Color {
@@ -326,12 +533,51 @@ private struct Chip: View {
     }
 }
 
+private struct QuickAddChipSurface: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    @State private var isHovering = false
+
+    let tint: Color
+    let isPlaceholder: Bool
+    let isInteractive: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .background(backgroundStyle, in: RoundedRectangle(cornerRadius: TallyChrome.controlCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: TallyChrome.controlCornerRadius, style: .continuous)
+                    .stroke(strokeStyle, lineWidth: 0.75)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: TallyChrome.controlCornerRadius, style: .continuous))
+            .onHover { isHovering = $0 && isInteractive }
+    }
+
+    private var backgroundStyle: Color {
+        if isPlaceholder {
+            return .secondary.opacity(isHovering ? 0.16 : 0.10)
+        }
+
+        return tint.opacity(isHovering ? 0.20 : 0.14)
+    }
+
+    private var strokeStyle: Color {
+        let opacity = isPlaceholder ? 0.07 : 0.10
+
+        if colorScheme == .dark {
+            return .white.opacity(opacity)
+        }
+
+        return .black.opacity(opacity)
+    }
+}
+
 private struct InsertQuickAddTokenKey: EnvironmentKey {
     static let defaultValue: (String) -> Void = { _ in }
 }
 
-private struct SelectQuickAddDateKey: EnvironmentKey {
-    static let defaultValue: (Date) -> Void = { _ in }
+private struct ApplyQuickAddDueDateSelectionKey: EnvironmentKey {
+    static let defaultValue: (QuickAddDueDateSelection?) -> Void = { _ in }
 }
 
 private extension EnvironmentValues {
@@ -340,18 +586,30 @@ private extension EnvironmentValues {
         set { self[InsertQuickAddTokenKey.self] = newValue }
     }
 
-    var selectQuickAddDate: (Date) -> Void {
-        get { self[SelectQuickAddDateKey.self] }
-        set { self[SelectQuickAddDateKey.self] = newValue }
+    var applyQuickAddDueDateSelection: (QuickAddDueDateSelection?) -> Void {
+        get { self[ApplyQuickAddDueDateSelectionKey.self] }
+        set { self[ApplyQuickAddDueDateSelectionKey.self] = newValue }
     }
 }
 
 private extension View {
+    func quickAddChipSurface(
+        tint: Color,
+        isPlaceholder: Bool,
+        isInteractive: Bool = true
+    ) -> some View {
+        modifier(QuickAddChipSurface(
+            tint: tint,
+            isPlaceholder: isPlaceholder,
+            isInteractive: isInteractive
+        ))
+    }
+
     func onInsertToken(_ action: @escaping (String) -> Void) -> some View {
         environment(\.insertQuickAddToken, action)
     }
 
-    func onSelectDate(_ action: @escaping (Date) -> Void) -> some View {
-        environment(\.selectQuickAddDate, action)
+    func onApplyDueDateSelection(_ action: @escaping (QuickAddDueDateSelection?) -> Void) -> some View {
+        environment(\.applyQuickAddDueDateSelection, action)
     }
 }

@@ -57,6 +57,130 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertToken(in: fields, originalText: input, kind: .date, equals: "2026-06-04")
     }
 
+    func testParsesDatePickerTokenWithTime() throws {
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13)))
+        let input = "Renew license 2026-08-14 3:30pm"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Renew license")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 8, day: 14, hour: 15, minute: 30)
+        XCTAssertToken(in: fields, originalText: input, kind: .time, equals: "2026-08-14 3:30pm")
+    }
+
+    func testDueDateTokenEditorInsertsDateOnlyToken() throws {
+        let date = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 30)
+        let selection = QuickAddDueDateSelection(date: date, includesTime: false)
+
+        let output = QuickAddDueDateTokenEditor.applying(selection, to: "Renew license", calendar: calendar)
+
+        XCTAssertEqual(output, "Renew license 2026-08-14")
+    }
+
+    func testDueDateTokenEditorInsertsDateAndTimeToken() throws {
+        let date = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 30)
+        let selection = QuickAddDueDateSelection(date: date, includesTime: true)
+
+        let output = QuickAddDueDateTokenEditor.applying(selection, to: "Renew license", calendar: calendar)
+
+        XCTAssertEqual(output, "Renew license 2026-08-14 3:30pm")
+    }
+
+    func testDueDateTokenEditorReplacesDateOnlyToken() throws {
+        let date = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 30)
+        let selection = QuickAddDueDateSelection(date: date, includesTime: false)
+
+        let output = QuickAddDueDateTokenEditor.applying(
+            selection,
+            to: "Renew license 2026-06-04 #Work P2",
+            calendar: calendar
+        )
+
+        XCTAssertEqual(output, "Renew license 2026-08-14 #Work P2")
+    }
+
+    func testDueDateTokenEditorReplacesDateAndTimeToken() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let date = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 30)
+        let selection = QuickAddDueDateSelection(date: date, includesTime: true)
+
+        let output = QuickAddDueDateTokenEditor.applying(
+            selection,
+            to: "Call Sam today at 3:30pm #Work",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(output, "Call Sam 2026-08-14 3:30pm #Work")
+    }
+
+    func testDueDateTokenEditorReplacesRelativeTimeTokens() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let date = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 30)
+        let selection = QuickAddDueDateSelection(date: date, includesTime: true)
+
+        let laterToday = QuickAddDueDateTokenEditor.applying(
+            selection,
+            to: "Review notes later today P2",
+            calendar: calendar,
+            now: now
+        )
+        let relativeHours = QuickAddDueDateTokenEditor.applying(
+            selection,
+            to: "Submit report in 2 hours P1",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(laterToday, "Review notes 2026-08-14 3:30pm P2")
+        XCTAssertEqual(relativeHours, "Submit report 2026-08-14 3:30pm P1")
+    }
+
+    func testDueDateTokenEditorClearsDueDateTokens() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+
+        let dateAndTime = QuickAddDueDateTokenEditor.applying(
+            nil,
+            to: "Call Sam today at 3:30pm #Work @phone P1",
+            calendar: calendar,
+            now: now
+        )
+        let relativeTime = QuickAddDueDateTokenEditor.applying(
+            nil,
+            to: "Review notes later today #Work P2",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(dateAndTime, "Call Sam #Work @phone P1")
+        XCTAssertEqual(relativeTime, "Review notes #Work P2")
+    }
+
+    func testDueDateTokenEditorRespectsSuppressedInferredTokens() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let input = "Dinner 6pm"
+        let parsed = QuickAddParser.parse(input, calendar: calendar, now: now)
+        let token = try XCTUnwrap(parsed.usedTokens.first)
+        let date = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 30)
+        let selection = QuickAddDueDateSelection(date: date, includesTime: false)
+
+        let output = QuickAddDueDateTokenEditor.applying(
+            selection,
+            to: input,
+            calendar: calendar,
+            now: now,
+            suppressedInferredTokens: [
+                QuickAddSuppressedToken(
+                    kind: token.kind,
+                    range: token.range,
+                    text: (input as NSString).substring(with: token.range)
+                )
+            ]
+        )
+
+        XCTAssertEqual(output, "Dinner 6pm 2026-08-14")
+    }
+
     func testParsesDueTimeAfterDateToken() throws {
         let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13)))
 
@@ -419,5 +543,28 @@ final class QuickAddParserTests: XCTestCase {
         }
 
         XCTAssertEqual((originalText as NSString).substring(with: token.range), expectedText, file: file, line: line)
+    }
+
+    private func date(
+        year: Int,
+        month: Int,
+        day: Int,
+        hour: Int,
+        minute: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> Date {
+        try XCTUnwrap(
+            calendar.date(from: DateComponents(
+                calendar: calendar,
+                year: year,
+                month: month,
+                day: day,
+                hour: hour,
+                minute: minute
+            )),
+            file: file,
+            line: line
+        )
     }
 }

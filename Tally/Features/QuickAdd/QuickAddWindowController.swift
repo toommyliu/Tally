@@ -4,8 +4,8 @@ import SwiftUI
 @MainActor
 final class QuickAddWindowController: NSObject, NSWindowDelegate {
     private static let windowSize = NSSize(
-        width: TallyChrome.quickAddWindowSize.width,
-        height: TallyChrome.quickAddWindowSize.height
+        width: TallyChrome.quickAddPanelSize.width,
+        height: TallyChrome.quickAddPanelSize.height
     )
 
     private let reminderStore: ReminderStore

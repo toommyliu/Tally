@@ -21,6 +21,21 @@ struct QuickAddWindowView: View {
     """
 
     var body: some View {
+        quickAddSurface
+            .padding(TallyChrome.quickAddShadowPadding)
+            .frame(width: TallyChrome.quickAddPanelSize.width, height: TallyChrome.quickAddPanelSize.height)
+        .onChange(of: quickAddText) { _, newValue in
+            suppressedInferredTokens = suppressedInferredTokens.filter { suppression in
+                guard NSMaxRange(suppression.range) <= (newValue as NSString).length else {
+                    return false
+                }
+
+                return (newValue as NSString).substring(with: suppression.range) == suppression.text
+            }
+        }
+    }
+
+    private var quickAddSurface: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 11) {
                 HighlightedQuickAddTextField(
@@ -98,15 +113,6 @@ struct QuickAddWindowView: View {
             shadowRadius: 34,
             shadowY: 16
         )
-        .onChange(of: quickAddText) { _, newValue in
-            suppressedInferredTokens = suppressedInferredTokens.filter { suppression in
-                guard NSMaxRange(suppression.range) <= (newValue as NSString).length else {
-                    return false
-                }
-
-                return (newValue as NSString).substring(with: suppression.range) == suppression.text
-            }
-        }
     }
 
     private func addReminder() {

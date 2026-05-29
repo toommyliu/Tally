@@ -3,6 +3,11 @@ import SwiftUI
 
 enum TallyChrome {
     static let quickAddWindowSize = CGSize(width: 540, height: 188)
+    static let quickAddShadowPadding: CGFloat = 28
+    static let quickAddPanelSize = CGSize(
+        width: quickAddWindowSize.width + quickAddShadowPadding * 2,
+        height: quickAddWindowSize.height + quickAddShadowPadding * 2
+    )
     static let panelCornerRadius: CGFloat = 20
     static let popoverCornerRadius: CGFloat = 18
     static let controlCornerRadius: CGFloat = 8

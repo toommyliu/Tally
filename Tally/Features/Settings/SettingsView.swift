@@ -10,74 +10,75 @@ struct SettingsView: View {
     let onTrayShortcutChange: (GlobalShortcut) -> Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            settingsSection("Menu Bar") {
-                settingRow("Badge") {
-                    Picker("Badge", selection: $settingsStore.badgeStyle) {
-                        ForEach(MenuBarBadgeStyle.allCases) { style in
-                            Text(style.title).tag(style)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                settingsSection("Menu Bar") {
+                    settingRow("Badge") {
+                        Picker("Badge", selection: $settingsStore.badgeStyle) {
+                            ForEach(MenuBarBadgeStyle.allCases) { style in
+                                Text(style.title).tag(style)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 180)
+                    }
+
+                    shortcutRow(
+                        "Quick Add shortcut",
+                        shortcut: settingsStore.quickAddShortcut,
+                        defaultShortcut: .defaultQuickAddValue,
+                        applyShortcut: onQuickAddShortcutChange
+                    ) { shortcut in
+                        settingsStore.quickAddShortcut = shortcut
+                    }
+
+                    shortcutRow(
+                        "Tray shortcut",
+                        shortcut: settingsStore.trayShortcut,
+                        defaultShortcut: .defaultTrayValue,
+                        applyShortcut: onTrayShortcutChange
+                    ) { shortcut in
+                        settingsStore.trayShortcut = shortcut
+                    }
+                }
+
+                settingsSection("Permissions") {
+                    settingRow("Reminders") {
+                        Text(reminderStore.accessState.displayTitle)
+                            .foregroundStyle(reminderStore.accessState == .authorized ? .green : .secondary)
+                    }
+
+                    Button(reminderStore.accessState == .authorized ? "Refresh Permission" : "Grant Reminders Access") {
+                        Task {
+                            await reminderStore.requestAccessIfNeeded()
+                            await reminderStore.reload()
                         }
                     }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(width: 180)
+                    .tallySecondaryButtonStyle()
                 }
 
-                shortcutRow(
-                    "Quick Add shortcut",
-                    shortcut: settingsStore.quickAddShortcut,
-                    defaultShortcut: .defaultQuickAddValue,
-                    applyShortcut: onQuickAddShortcutChange
-                ) { shortcut in
-                    settingsStore.quickAddShortcut = shortcut
-                }
+                settingsSection("Startup") {
+                    Toggle(
+                        "Open at Login",
+                        isOn: Binding(
+                            get: { launchAtLoginController.isEnabled },
+                            set: { launchAtLoginController.setEnabled($0) }
+                        )
+                    )
 
-                shortcutRow(
-                    "Tray shortcut",
-                    shortcut: settingsStore.trayShortcut,
-                    defaultShortcut: .defaultTrayValue,
-                    applyShortcut: onTrayShortcutChange
-                ) { shortcut in
-                    settingsStore.trayShortcut = shortcut
-                }
-            }
-
-            settingsSection("Permissions") {
-                settingRow("Reminders") {
-                    Text(reminderStore.accessState.displayTitle)
-                        .foregroundStyle(reminderStore.accessState == .authorized ? .green : .secondary)
-                }
-
-                Button(reminderStore.accessState == .authorized ? "Refresh Permission" : "Grant Reminders Access") {
-                    Task {
-                        await reminderStore.requestAccessIfNeeded()
-                        await reminderStore.reload()
+                    if let errorMessage = launchAtLoginController.errorMessage {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .tallySecondaryButtonStyle()
             }
-
-            settingsSection("Startup") {
-                Toggle(
-                    "Open at Login",
-                    isOn: Binding(
-                        get: { launchAtLoginController.isEnabled },
-                        set: { launchAtLoginController.setEnabled($0) }
-                    )
-                )
-
-                if let errorMessage = launchAtLoginController.errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Spacer(minLength: 0)
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(24)
-        .frame(width: 460, height: 374, alignment: .topLeading)
+        .frame(minWidth: 460, idealWidth: 460, minHeight: 420, idealHeight: 420, alignment: .topLeading)
         .background(.regularMaterial)
     }
 

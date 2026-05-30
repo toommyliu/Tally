@@ -93,6 +93,12 @@ enum QuickAddParser {
                 continue
             }
 
+            if token.text == "@" {
+                usedTokens.append(QuickAddToken(kind: .tag, range: token.range))
+                index += 1
+                continue
+            }
+
             if token.text.hasPrefix("@"), token.text.count > 1 {
                 tags.append(String(token.text.dropFirst()))
                 usedTokens.append(QuickAddToken(kind: .tag, range: token.range))

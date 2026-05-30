@@ -181,6 +181,97 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertEqual(output, "Dinner 6pm 2026-08-14")
     }
 
+    func testPendingTagMarkerDoesNotBecomeTitleText() {
+        let emptyMarker = QuickAddParser.parse("@", calendar: calendar)
+        XCTAssertEqual(emptyMarker.title, "")
+        XCTAssertEqual(emptyMarker.tags, [])
+        XCTAssertEqual(emptyMarker.usedTokens.count, 1)
+        XCTAssertEqual(emptyMarker.usedTokens.first?.kind, .tag)
+
+        let trailingMarker = QuickAddParser.parse("Call Sam @phone @", calendar: calendar)
+        XCTAssertEqual(trailingMarker.title, "Call Sam")
+        XCTAssertEqual(trailingMarker.tags, ["phone"])
+    }
+
+    func testTagTokenEditorReusesPendingMarker() {
+        let firstEdit = QuickAddTokenEditor.beginningTagEntry(in: "Call Sam", calendar: calendar)
+        XCTAssertEqual(firstEdit.text, "Call Sam @")
+        XCTAssertEqual(firstEdit.selectedRange?.location, ("Call Sam @" as NSString).length)
+        XCTAssertEqual(firstEdit.selectedRange?.length, 0)
+
+        let repeatedEdit = QuickAddTokenEditor.beginningTagEntry(in: firstEdit.text, calendar: calendar)
+        XCTAssertEqual(repeatedEdit.text, "Call Sam @")
+        XCTAssertEqual(repeatedEdit.selectedRange?.location, ("Call Sam @" as NSString).length)
+        XCTAssertEqual(repeatedEdit.selectedRange?.length, 0)
+
+        let collapsedEdit = QuickAddTokenEditor.beginningTagEntry(in: "Call Sam @ @", calendar: calendar)
+        XCTAssertEqual(collapsedEdit.text, "Call Sam @")
+        XCTAssertEqual(collapsedEdit.selectedRange?.location, ("Call Sam @" as NSString).length)
+        XCTAssertEqual(collapsedEdit.selectedRange?.length, 0)
+    }
+
+    func testTagTokenEditorAddsAnotherTagEntryWhenRequested() {
+        let edit = QuickAddTokenEditor.addingTagEntry(in: "Call Sam @phone", calendar: calendar)
+
+        XCTAssertEqual(edit.text, "Call Sam @phone @")
+        XCTAssertEqual(edit.selectedRange?.location, ("Call Sam @phone @" as NSString).length)
+        XCTAssertEqual(edit.selectedRange?.length, 0)
+    }
+
+    func testTagTokenEditorReusesExistingTagInsteadOfAddingAnotherMarker() {
+        let edit = QuickAddTokenEditor.beginningTagEntry(in: "Call Sam @phone", calendar: calendar)
+
+        XCTAssertEqual(edit.text, "Call Sam @phone")
+        XCTAssertEqual(edit.selectedRange?.location, 10)
+        XCTAssertEqual(edit.selectedRange?.length, 5)
+    }
+
+    func testTagTokenEditorReusesLastExistingTag() {
+        let edit = QuickAddTokenEditor.beginningTagEntry(in: "Call Sam @phone @work", calendar: calendar)
+
+        XCTAssertEqual(edit.text, "Call Sam @phone @work")
+        XCTAssertEqual(edit.selectedRange?.location, 17)
+        XCTAssertEqual(edit.selectedRange?.length, 4)
+    }
+
+    func testTagTokenEditorEditsSpecificTag() {
+        let firstTag = QuickAddTokenEditor.editingTag(at: 0, in: "Call Sam @phone @work", calendar: calendar)
+        let secondTag = QuickAddTokenEditor.editingTag(at: 1, in: "Call Sam @phone @work", calendar: calendar)
+
+        XCTAssertEqual(firstTag.text, "Call Sam @phone @work")
+        XCTAssertEqual(firstTag.selectedRange?.location, 10)
+        XCTAssertEqual(firstTag.selectedRange?.length, 5)
+        XCTAssertEqual(secondTag.text, "Call Sam @phone @work")
+        XCTAssertEqual(secondTag.selectedRange?.location, 17)
+        XCTAssertEqual(secondTag.selectedRange?.length, 4)
+    }
+
+    func testTagTokenEditorRemovesSpecificTag() {
+        let firstRemoved = QuickAddTokenEditor.removingTag(at: 0, from: "Call Sam @phone @work", calendar: calendar)
+        let secondRemoved = QuickAddTokenEditor.removingTag(at: 1, from: "Call Sam @phone @work", calendar: calendar)
+
+        XCTAssertEqual(firstRemoved, "Call Sam @work")
+        XCTAssertEqual(secondRemoved, "Call Sam @phone")
+    }
+
+    func testListTokenEditorReplacesExistingListTokens() {
+        let single = QuickAddTokenEditor.applyingList("Deep Work", to: "Call Sam #Home P1", calendar: calendar)
+        let multiple = QuickAddTokenEditor.applyingList("Errands", to: "Call Sam #Home #Work P1", calendar: calendar)
+
+        XCTAssertEqual(single, "Call Sam #Deep%20Work P1")
+        XCTAssertEqual(multiple, "Call Sam #Errands P1")
+    }
+
+    func testPriorityTokenEditorReplacesAndClearsExistingPriorityTokens() {
+        let inserted = QuickAddTokenEditor.applyingPriority(1, to: "Call Sam #Work", calendar: calendar)
+        let replaced = QuickAddTokenEditor.applyingPriority(5, to: "Call Sam P1 #Work", calendar: calendar)
+        let cleared = QuickAddTokenEditor.applyingPriority(0, to: "Call Sam P1 P2 #Work", calendar: calendar)
+
+        XCTAssertEqual(inserted, "Call Sam #Work P1")
+        XCTAssertEqual(replaced, "Call Sam P2 #Work")
+        XCTAssertEqual(cleared, "Call Sam #Work")
+    }
+
     func testParsesDueTimeAfterDateToken() throws {
         let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13)))
 

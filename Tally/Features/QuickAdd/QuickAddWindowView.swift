@@ -8,6 +8,7 @@ struct QuickAddWindowView: View {
     @State private var isShowingTokenHelp = false
     @State private var keepsOpenAfterAdd = false
     @State private var suppressedInferredTokens: [QuickAddSuppressedToken] = []
+    @State private var quickAddSelectionRequest: NSRange?
 
     let onCancel: () -> Void
     let onSubmit: (String, String, Bool, [QuickAddSuppressedToken]) -> Void
@@ -40,6 +41,7 @@ struct QuickAddWindowView: View {
             VStack(alignment: .leading, spacing: 11) {
                 HighlightedQuickAddTextField(
                     text: $quickAddText,
+                    selectedRangeRequest: $quickAddSelectionRequest,
                     tokens: parsedPreview.usedTokens,
                     placeholder: "New reminder",
                     onSubmit: addReminder,
@@ -53,10 +55,17 @@ struct QuickAddWindowView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1...3)
 
-                QuickAddPreview(fields: parsedPreview, fallbackListTitle: reminderStore.activeListTitle)
+                QuickAddPreview(
+                    fields: parsedPreview,
+                    fallbackListTitle: reminderStore.activeListTitle,
+                    onApplyDueDateSelection: applyDueDateSelection,
+                    onApplyListSelection: applyListSelection,
+                    onApplyPrioritySelection: applyPrioritySelection,
+                    onAddTagEntry: addTagEntry,
+                    onEditTag: editTag,
+                    onRemoveTag: removeTag
+                )
                     .environmentObject(reminderStore)
-                    .onInsertToken(insertToken)
-                    .onApplyDueDateSelection(applyDueDateSelection)
             }
             .padding(.horizontal, 20)
             .padding(.top, 18)
@@ -177,15 +186,53 @@ struct QuickAddWindowView: View {
         return true
     }
 
-    private func insertToken(_ token: String) {
-        let separator = quickAddText.isEmpty || quickAddText.hasSuffix(" ") ? "" : " "
-        quickAddText += separator + token
-    }
-
     private func applyDueDateSelection(_ selection: QuickAddDueDateSelection?) {
-        quickAddText = QuickAddDueDateTokenEditor.applying(
+        quickAddText = QuickAddTokenEditor.applyingDueDate(
             selection,
             to: quickAddText,
+            suppressedInferredTokens: suppressedInferredTokens
+        )
+    }
+
+    private func applyListSelection(_ listTitle: String) {
+        quickAddText = QuickAddTokenEditor.applyingList(
+            listTitle,
+            to: quickAddText,
+            suppressedInferredTokens: suppressedInferredTokens
+        )
+    }
+
+    private func applyPrioritySelection(_ priority: Int) {
+        quickAddText = QuickAddTokenEditor.applyingPriority(
+            priority,
+            to: quickAddText,
+            suppressedInferredTokens: suppressedInferredTokens
+        )
+    }
+
+    private func addTagEntry() {
+        let edit = QuickAddTokenEditor.addingTagEntry(
+            in: quickAddText,
+            suppressedInferredTokens: suppressedInferredTokens
+        )
+        quickAddText = edit.text
+        quickAddSelectionRequest = edit.selectedRange
+    }
+
+    private func editTag(at index: Int) {
+        let edit = QuickAddTokenEditor.editingTag(
+            at: index,
+            in: quickAddText,
+            suppressedInferredTokens: suppressedInferredTokens
+        )
+        quickAddText = edit.text
+        quickAddSelectionRequest = edit.selectedRange
+    }
+
+    private func removeTag(at index: Int) {
+        quickAddText = QuickAddTokenEditor.removingTag(
+            at: index,
+            from: quickAddText,
             suppressedInferredTokens: suppressedInferredTokens
         )
     }
@@ -206,49 +253,188 @@ private struct TokenHelpView: View {
 
 private struct QuickAddPreview: View {
     @EnvironmentObject private var reminderStore: ReminderStore
-    @Environment(\.insertQuickAddToken) private var insertToken
-    @Environment(\.applyQuickAddDueDateSelection) private var applyDueDateSelection
 
     let fields: QuickAddFields
     let fallbackListTitle: String
+    let onApplyDueDateSelection: (QuickAddDueDateSelection?) -> Void
+    let onApplyListSelection: (String) -> Void
+    let onApplyPrioritySelection: (Int) -> Void
+    let onAddTagEntry: () -> Void
+    let onEditTag: (Int) -> Void
+    let onRemoveTag: (Int) -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                DatePickerChip(fields: fields, onApplySelection: applyDueDateSelection)
+                DatePickerChip(fields: fields, onApplySelection: onApplyDueDateSelection)
 
                 ListPickerChip(
                     title: fields.listName ?? fallbackListTitle,
                     isPlaceholder: fields.listName == nil,
                     listTitles: reminderStore.reminderListTitles,
-                    onSelect: { listTitle in
-                        insertToken("#\(QuickAddListTokenCodec.encode(listTitle))")
-                    }
+                    onSelect: onApplyListSelection
                 )
 
                 PriorityPickerChip(
                     priority: fields.priority,
-                    onSelect: { token in
-                        insertToken(token)
-                    }
+                    onSelect: onApplyPrioritySelection
                 )
 
-                if fields.tags.isEmpty {
-                    Button {
-                        insertToken("@")
-                    } label: {
-                        QuickAddChip(systemName: "tag.fill", title: "Tag", tint: .orange, isPlaceholder: true)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    ForEach(fields.tags, id: \.self) { tag in
-                        QuickAddChip(systemName: "tag.fill", title: tag, tint: .orange, isInteractive: false)
-                    }
-                }
+                TagPickerChip(
+                    tags: fields.tags,
+                    onAdd: onAddTagEntry,
+                    onEdit: onEditTag,
+                    onRemove: onRemoveTag
+                )
             }
             .frame(height: 30)
         }
         .frame(height: 30)
+    }
+}
+
+private struct TagPickerChip: View {
+    @State private var isShowingPicker = false
+
+    let tags: [String]
+    let onAdd: () -> Void
+    let onEdit: (Int) -> Void
+    let onRemove: (Int) -> Void
+
+    private var title: String {
+        switch tags.count {
+        case 0:
+            return "Tag"
+        case 1:
+            return tags[0]
+        default:
+            return "\(tags.count) tags"
+        }
+    }
+
+    var body: some View {
+        Button {
+            isShowingPicker.toggle()
+        } label: {
+            QuickAddChip(
+                systemName: "tag.fill",
+                title: title,
+                tint: .orange,
+                isPlaceholder: tags.isEmpty,
+                showsChevron: true
+            )
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
+            QuickAddTagPickerPopover(
+                tags: tags,
+                onAdd: {
+                    onAdd()
+                    isShowingPicker = false
+                },
+                onEdit: { index in
+                    onEdit(index)
+                    isShowingPicker = false
+                },
+                onRemove: onRemove
+            )
+        }
+        .accessibilityLabel("Tags")
+    }
+}
+
+private struct QuickAddTagPickerPopover: View {
+    let tags: [String]
+    let onAdd: () -> Void
+    let onEdit: (Int) -> Void
+    let onRemove: (Int) -> Void
+
+    var body: some View {
+        QuickAddPickerPanel(width: 230) {
+            if tags.isEmpty {
+                Text("No tags")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
+            } else {
+                ForEach(Array(tags.enumerated()), id: \.offset) { index, tag in
+                    QuickAddTagPickerRow(
+                        tag: tag,
+                        onEdit: { onEdit(index) },
+                        onRemove: { onRemove(index) }
+                    )
+                }
+            }
+
+            Divider()
+                .padding(.vertical, 3)
+
+            Button(action: onAdd) {
+                QuickAddPickerRow(
+                    systemName: "plus",
+                    title: "Add tag",
+                    tint: .orange,
+                    isSelected: false
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct QuickAddTagPickerRow: View {
+    @State private var isHovering = false
+
+    let tag: String
+    let onEdit: () -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "tag.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Color.orange)
+                .frame(width: 15)
+
+            Text(tag)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: 10)
+
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Edit tag")
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Remove tag")
+        }
+        .padding(.horizontal, 9)
+        .frame(height: 30)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .onHover { isHovering = $0 }
+    }
+
+    private var rowBackground: Color {
+        Color.primary.opacity(isHovering ? 0.07 : 0)
     }
 }
 
@@ -328,7 +514,7 @@ private struct PriorityPickerChip: View {
     @State private var isShowingPicker = false
 
     let priority: Int
-    let onSelect: (String) -> Void
+    let onSelect: (Int) -> Void
 
     private var isPlaceholder: Bool {
         priority == 0
@@ -351,8 +537,8 @@ private struct PriorityPickerChip: View {
         .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
             QuickAddPriorityPickerPopover(
                 selectedPriority: priority,
-                onSelect: { token in
-                    onSelect(token)
+                onSelect: { selectedPriority in
+                    onSelect(selectedPriority)
                     isShowingPicker = false
                 }
             )
@@ -395,7 +581,7 @@ private struct QuickAddListPickerPopover: View {
 
 private struct QuickAddPriorityPickerPopover: View {
     let selectedPriority: Int
-    let onSelect: (String) -> Void
+    let onSelect: (Int) -> Void
 
     private let options = [
         QuickAddPriorityOption(title: "P1", token: "P1", value: 1),
@@ -408,7 +594,7 @@ private struct QuickAddPriorityPickerPopover: View {
         QuickAddPickerPanel {
             ForEach(options) { option in
                 Button {
-                    onSelect(option.token)
+                    onSelect(option.value)
                 } label: {
                     QuickAddPickerRow(
                         systemName: option.value == 0 ? "flag" : "flag.fill",
@@ -434,9 +620,11 @@ private struct QuickAddPriorityOption: Identifiable {
 }
 
 private struct QuickAddPickerPanel<Content: View>: View {
+    let width: CGFloat
     let content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(width: CGFloat = 190, @ViewBuilder content: () -> Content) {
+        self.width = width
         self.content = content()
     }
 
@@ -447,7 +635,7 @@ private struct QuickAddPickerPanel<Content: View>: View {
             }
             .padding(6)
         }
-        .frame(width: 190)
+        .frame(width: width)
         .frame(maxHeight: 220)
     }
 }
@@ -589,26 +777,6 @@ private struct QuickAddChipSurface: ViewModifier {
     }
 }
 
-private struct InsertQuickAddTokenKey: EnvironmentKey {
-    static let defaultValue: (String) -> Void = { _ in }
-}
-
-private struct ApplyQuickAddDueDateSelectionKey: EnvironmentKey {
-    static let defaultValue: (QuickAddDueDateSelection?) -> Void = { _ in }
-}
-
-private extension EnvironmentValues {
-    var insertQuickAddToken: (String) -> Void {
-        get { self[InsertQuickAddTokenKey.self] }
-        set { self[InsertQuickAddTokenKey.self] = newValue }
-    }
-
-    var applyQuickAddDueDateSelection: (QuickAddDueDateSelection?) -> Void {
-        get { self[ApplyQuickAddDueDateSelectionKey.self] }
-        set { self[ApplyQuickAddDueDateSelectionKey.self] = newValue }
-    }
-}
-
 private extension View {
     func quickAddChipSurface(
         tint: Color,
@@ -620,13 +788,5 @@ private extension View {
             isPlaceholder: isPlaceholder,
             isInteractive: isInteractive
         ))
-    }
-
-    func onInsertToken(_ action: @escaping (String) -> Void) -> some View {
-        environment(\.insertQuickAddToken, action)
-    }
-
-    func onApplyDueDateSelection(_ action: @escaping (QuickAddDueDateSelection?) -> Void) -> some View {
-        environment(\.applyQuickAddDueDateSelection, action)
     }
 }

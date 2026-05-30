@@ -3,6 +3,7 @@ import SwiftUI
 
 struct HighlightedQuickAddTextField: NSViewRepresentable {
     @Binding var text: String
+    @Binding var selectedRangeRequest: NSRange?
 
     let tokens: [QuickAddToken]
     let placeholder: String
@@ -17,11 +18,20 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
 
     func updateNSView(_ nsView: HighlightedQuickAddTextFieldView, context: Context) {
         context.coordinator.parent = self
-        nsView.update(text: text, tokens: tokens, placeholder: placeholder)
+        nsView.update(
+            text: text,
+            tokens: tokens,
+            placeholder: placeholder,
+            selectedRange: selectedRangeRequest
+        )
 
         DispatchQueue.main.async {
             if nsView.window?.firstResponder !== nsView.textView {
                 nsView.window?.makeFirstResponder(nsView.textView)
+            }
+
+            if selectedRangeRequest != nil {
+                selectedRangeRequest = nil
             }
         }
     }
@@ -43,6 +53,7 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
             }
 
             parent.text = textView.string
+            textView.scrollRangeToVisible(textView.selectedRange())
         }
 
         func textView(
@@ -66,6 +77,7 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
 final class HighlightedQuickAddTextFieldView: NSView {
     let textView = NSTextView()
 
+    private let scrollView = NSScrollView()
     private let placeholderLabel = NSTextField(labelWithString: "")
     private var lastText = ""
     private var lastTokens: [QuickAddToken] = []
@@ -80,27 +92,44 @@ final class HighlightedQuickAddTextFieldView: NSView {
         configure()
     }
 
-    func update(text: String, tokens: [QuickAddToken], placeholder: String) {
+    func update(
+        text: String,
+        tokens: [QuickAddToken],
+        placeholder: String,
+        selectedRange: NSRange?
+    ) {
         placeholderLabel.stringValue = placeholder
         placeholderLabel.isHidden = !text.isEmpty
 
-        guard text != lastText || tokens != lastTokens else {
-            return
+        if text != lastText || tokens != lastTokens {
+            let selectedRanges = textView.selectedRanges
+            textView.textStorage?.setAttributedString(attributedString(for: text, tokens: tokens))
+            textView.selectedRanges = clampedSelectedRanges(selectedRanges, textLength: (text as NSString).length)
+            textView.scrollRangeToVisible(textView.selectedRange())
+
+            lastText = text
+            lastTokens = tokens
         }
 
-        let selectedRanges = textView.selectedRanges
-        textView.textStorage?.setAttributedString(attributedString(for: text, tokens: tokens))
-        textView.selectedRanges = selectedRanges
-
-        lastText = text
-        lastTokens = tokens
+        if let selectedRange {
+            textView.setSelectedRange(clampedSelectedRange(selectedRange, textLength: (text as NSString).length))
+            textView.scrollRangeToVisible(textView.selectedRange())
+        }
     }
 
     private func configure() {
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
 
-        textView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.verticalScrollElasticity = .none
+        scrollView.horizontalScrollElasticity = .allowed
+
         textView.drawsBackground = false
         textView.isRichText = false
         textView.importsGraphics = false
@@ -113,26 +142,39 @@ final class HighlightedQuickAddTextFieldView: NSView {
         textView.textContainerInset = NSSize(width: 0, height: 0)
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.maximumNumberOfLines = 1
-        textView.textContainer?.lineBreakMode = .byTruncatingTail
+        textView.textContainer?.lineBreakMode = .byClipping
+        textView.textContainer?.containerSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.textContainer?.widthTracksTextView = false
         textView.isVerticallyResizable = false
-        textView.isHorizontallyResizable = false
+        textView.isHorizontallyResizable = true
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.frame = NSRect(origin: .zero, size: NSSize(width: bounds.width, height: 25))
+        textView.autoresizingMask = [.height]
+        scrollView.documentView = textView
 
         placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
         placeholderLabel.font = .systemFont(ofSize: 20, weight: .semibold)
         placeholderLabel.textColor = .placeholderTextColor
 
+        addSubview(scrollView)
         addSubview(placeholderLabel)
-        addSubview(textView)
 
         NSLayoutConstraint.activate([
-            textView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            textView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            textView.topAnchor.constraint(equalTo: topAnchor),
-            textView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
             placeholderLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
             placeholderLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
-            placeholderLabel.centerYAnchor.constraint(equalTo: textView.centerYAnchor, constant: -1)
+            placeholderLabel.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor, constant: -1)
         ])
     }
 
@@ -170,5 +212,17 @@ final class HighlightedQuickAddTextFieldView: NSView {
             .foregroundColor: color,
             .backgroundColor: color.withAlphaComponent(0.16)
         ]
+    }
+
+    private func clampedSelectedRanges(_ ranges: [NSValue], textLength: Int) -> [NSValue] {
+        ranges.map { value in
+            NSValue(range: clampedSelectedRange(value.rangeValue, textLength: textLength))
+        }
+    }
+
+    private func clampedSelectedRange(_ range: NSRange, textLength: Int) -> NSRange {
+        let location = min(max(range.location, 0), textLength)
+        let maxLength = textLength - location
+        return NSRange(location: location, length: min(max(range.length, 0), maxLength))
     }
 }

@@ -89,14 +89,18 @@ final class ReminderStore: ObservableObject {
         }
     }
 
-    func addReminder(from input: String, notes: String?) async {
+    func addReminder(
+        from input: String,
+        notes: String?,
+        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+    ) async {
         await requestAccessIfNeeded()
 
         guard accessState == .authorized else {
             return
         }
 
-        let fields = QuickAddParser.parse(input)
+        let fields = QuickAddParser.parse(input, suppressedInferredTokens: suppressedInferredTokens)
         guard !fields.title.isEmpty else {
             return
         }

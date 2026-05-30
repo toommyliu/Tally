@@ -45,8 +45,16 @@ struct SettingsView: View {
 
                 settingsSection("Permissions") {
                     settingRow("Reminders") {
-                        Text(reminderStore.accessState.displayTitle)
-                            .foregroundStyle(reminderStore.accessState == .authorized ? .green : .secondary)
+                        HStack(spacing: 6) {
+                            if reminderStore.isLoading || reminderStore.accessState == .requesting {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .scaleEffect(0.72)
+                            }
+
+                            Text(reminderStore.accessState.displayTitle)
+                                .foregroundStyle(reminderStore.accessState == .authorized ? .green : .secondary)
+                        }
                     }
 
                     Button(reminderStore.accessState == .authorized ? "Refresh Permission" : "Grant Reminders Access") {
@@ -56,6 +64,14 @@ struct SettingsView: View {
                         }
                     }
                     .tallySecondaryButtonStyle()
+                    .disabled(reminderStore.accessState == .requesting)
+
+                    if let errorMessage = reminderStore.errorMessage {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 settingsSection("Startup") {

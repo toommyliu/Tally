@@ -31,6 +31,7 @@
 		100000000000000000000018 /* QuickAddDueDateTokenEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */; };
 		100000000000000000000019 /* DueDatePickerPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011D /* DueDatePickerPopover.swift */; };
 		10000000000000000000001A /* TallyChromeStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011E /* TallyChromeStyle.swift */; };
+		10000000000000000000001B /* ReminderFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011F /* ReminderFormattingTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,6 +73,7 @@
 		10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddDueDateTokenEditor.swift; sourceTree = "<group>"; };
 		10000000000000000000011D /* DueDatePickerPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DueDatePickerPopover.swift; sourceTree = "<group>"; };
 		10000000000000000000011E /* TallyChromeStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TallyChromeStyle.swift; sourceTree = "<group>"; };
+		10000000000000000000011F /* ReminderFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderFormattingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -191,6 +193,7 @@
 			children = (
 				10000000000000000000010B /* QuickAddParserTests.swift */,
 				10000000000000000000011B /* AppSettingsStoreTests.swift */,
+				10000000000000000000011F /* ReminderFormattingTests.swift */,
 			);
 			path = TallyTests;
 			sourceTree = "<group>";
@@ -351,6 +354,7 @@
 			files = (
 				100000000000000000000008 /* QuickAddParserTests.swift in Sources */,
 				100000000000000000000017 /* AppSettingsStoreTests.swift in Sources */,
+				10000000000000000000001B /* ReminderFormattingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

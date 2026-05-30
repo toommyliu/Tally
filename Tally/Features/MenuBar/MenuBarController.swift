@@ -52,10 +52,38 @@ final class MenuBarController: NSObject {
             }
             .store(in: &cancellables)
 
+        reminderStore.$accessState
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshMenu()
+            }
+            .store(in: &cancellables)
+
+        reminderStore.$isLoading
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshMenu()
+            }
+            .store(in: &cancellables)
+
+        reminderStore.$errorMessage
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshMenu()
+            }
+            .store(in: &cancellables)
+
         settingsStore.$badgeStyle
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.refreshStatusItem()
+            }
+            .store(in: &cancellables)
+
+        settingsStore.$quickAddShortcut
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshMenu()
             }
             .store(in: &cancellables)
 
@@ -103,14 +131,40 @@ final class MenuBarController: NSObject {
         let menu = TrayMenu()
         menu.delegate = self
 
-        let quickAddItem = NSMenuItem(title: "Quick Add", action: #selector(showQuickAdd), keyEquivalent: " ")
-        quickAddItem.keyEquivalentModifierMask = [.option]
+        let quickAddItem = NSMenuItem(
+            title: "Quick Add",
+            action: #selector(showQuickAdd),
+            keyEquivalent: settingsStore.quickAddShortcut.keyEquivalent
+        )
+        quickAddItem.keyEquivalentModifierMask = settingsStore.quickAddShortcut.menuModifierFlags
         quickAddItem.target = self
+        quickAddItem.isEnabled = settingsStore.quickAddShortcut.isValid
         menu.addItem(quickAddItem)
 
         menu.addItem(.separator())
 
-        if reminderStore.reminders.isEmpty {
+        if reminderStore.accessState != .authorized {
+            let accessItem = NSMenuItem(title: reminderStore.accessState.menuTitle, action: nil, keyEquivalent: "")
+            accessItem.isEnabled = false
+            menu.addItem(accessItem)
+
+            let retryItem = NSMenuItem(title: "Request Access", action: #selector(refreshReminders), keyEquivalent: "")
+            retryItem.target = self
+            retryItem.isEnabled = reminderStore.accessState != .requesting
+            menu.addItem(retryItem)
+        } else if reminderStore.isLoading {
+            let loadingItem = NSMenuItem(title: "Syncing reminders...", action: nil, keyEquivalent: "")
+            loadingItem.isEnabled = false
+            menu.addItem(loadingItem)
+        } else if let errorMessage = reminderStore.errorMessage {
+            let errorItem = NSMenuItem(title: "Sync error: \(errorMessage)".truncatedForMenu(maxLength: 30), action: nil, keyEquivalent: "")
+            errorItem.isEnabled = false
+            menu.addItem(errorItem)
+
+            let retryItem = NSMenuItem(title: "Retry Sync", action: #selector(refreshReminders), keyEquivalent: "")
+            retryItem.target = self
+            menu.addItem(retryItem)
+        } else if reminderStore.reminders.isEmpty {
             let emptyItem = NSMenuItem(title: "No open reminders", action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             menu.addItem(emptyItem)
@@ -211,6 +265,13 @@ final class MenuBarController: NSObject {
         reminderStore.openReminders()
     }
 
+    @objc private func refreshReminders() {
+        Task {
+            await reminderStore.requestAccessIfNeeded()
+            await reminderStore.reload()
+        }
+    }
+
     @objc private func openSettings() {
         appController.showSettings()
     }
@@ -221,6 +282,21 @@ final class MenuBarController: NSObject {
 
     @objc private func closeTrayMenu() {
         statusItem.menu?.cancelTracking()
+    }
+}
+
+private extension ReminderStore.AccessState {
+    var menuTitle: String {
+        switch self {
+        case .unknown:
+            return "Reminders not loaded"
+        case .requesting:
+            return "Requesting access..."
+        case .authorized:
+            return "Reminders ready"
+        case .denied:
+            return "Reminders access denied"
+        }
     }
 }
 
@@ -515,15 +591,5 @@ private extension NSMenuItem {
         let eventFlags = event.modifierFlags.intersection(TrayMenu.significantModifierFlags)
         let itemFlags = keyEquivalentModifierMask.intersection(TrayMenu.significantModifierFlags)
         return eventFlags == itemFlags
-    }
-}
-
-private extension ReminderItem {
-    var menuTitle: String {
-        if let dueDate {
-            return "\(title) - \(dueDate.shortDisplayTitle)"
-        }
-
-        return title
     }
 }

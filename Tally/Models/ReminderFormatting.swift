@@ -60,3 +60,30 @@ extension Int {
         }
     }
 }
+
+extension ReminderItem {
+    var menuTitle: String {
+        formattedMenuTitle(maxLength: 30)
+    }
+
+    func formattedMenuTitle(maxLength: Int) -> String {
+        let titleWithDueDate: String
+        if let dueDate {
+            titleWithDueDate = "\(title) - \(dueDate.shortDisplayTitle)"
+        } else {
+            titleWithDueDate = title
+        }
+
+        return titleWithDueDate.truncatedForMenu(maxLength: maxLength)
+    }
+}
+
+extension String {
+    func truncatedForMenu(maxLength: Int) -> String {
+        guard maxLength > 3, count > maxLength else {
+            return self
+        }
+
+        return String(prefix(maxLength - 3)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}

@@ -58,13 +58,17 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             onCancel: { [weak self] in
                 self?.close()
             },
-            onSubmit: { [weak self] input, notes, shouldKeepOpen in
+            onSubmit: { [weak self] input, notes, shouldKeepOpen, suppressedInferredTokens in
                 guard let self else {
                     return
                 }
 
                 Task {
-                    await self.reminderStore.addReminder(from: input, notes: notes)
+                    await self.reminderStore.addReminder(
+                        from: input,
+                        notes: notes,
+                        suppressedInferredTokens: suppressedInferredTokens
+                    )
                     if shouldKeepOpen {
                         self.window?.makeKeyAndOrderFront(nil)
                     } else {

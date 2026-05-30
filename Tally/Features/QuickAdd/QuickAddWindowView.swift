@@ -10,7 +10,7 @@ struct QuickAddWindowView: View {
     @State private var suppressedInferredTokens: [QuickAddSuppressedToken] = []
 
     let onCancel: () -> Void
-    let onSubmit: (String, String, Bool) -> Void
+    let onSubmit: (String, String, Bool, [QuickAddSuppressedToken]) -> Void
 
     private var parsedPreview: QuickAddFields {
         QuickAddParser.parse(quickAddText, suppressedInferredTokens: suppressedInferredTokens)
@@ -95,10 +95,20 @@ struct QuickAddWindowView: View {
                     .tallySecondaryButtonStyle()
                     .keyboardShortcut(.cancelAction)
 
-                Button("Add task", action: addReminder)
-                    .tallyPrimaryButtonStyle()
-                    .disabled(parsedPreview.title.isEmpty || reminderStore.isSaving)
-                    .keyboardShortcut(.return, modifiers: .command)
+                Button(action: addReminder) {
+                    HStack(spacing: 6) {
+                        if reminderStore.isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.72)
+                        }
+
+                        Text(reminderStore.isSaving ? "Adding" : "Add task")
+                    }
+                }
+                .tallyPrimaryButtonStyle()
+                .disabled(parsedPreview.title.isEmpty || reminderStore.isSaving)
+                .keyboardShortcut(.return, modifiers: .command)
             }
             .padding(.horizontal, 18)
             .frame(height: 58)
@@ -118,15 +128,16 @@ struct QuickAddWindowView: View {
     private func addReminder() {
         let draft = quickAddText
         let noteDraft = notes
+        let suppressedTokens = suppressedInferredTokens
 
-        guard !QuickAddParser.parse(draft).title.isEmpty else {
+        guard !QuickAddParser.parse(draft, suppressedInferredTokens: suppressedTokens).title.isEmpty else {
             return
         }
 
         quickAddText = ""
         notes = ""
         suppressedInferredTokens = []
-        onSubmit(draft, noteDraft, keepsOpenAfterAdd)
+        onSubmit(draft, noteDraft, keepsOpenAfterAdd, suppressedTokens)
     }
 
     private func handleEscape(selectedRange: NSRange) -> Bool {

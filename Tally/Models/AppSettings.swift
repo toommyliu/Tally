@@ -11,9 +11,9 @@ enum MenuBarBadgeStyle: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .trailingCount:
-            return "Count"
+            return "Beside icon"
         case .iconBadge:
-            return "Badge"
+            return "On icon"
         }
     }
 }

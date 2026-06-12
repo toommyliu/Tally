@@ -3,9 +3,6 @@ import SwiftUI
 
 @MainActor
 final class AppController: NSObject, NSWindowDelegate {
-    private static let settingsWindowSize = NSSize(width: 460, height: 420)
-    private static let settingsWindowMinimumSize = NSSize(width: 420, height: 320)
-
     private var didConfigure = false
     private var reminderStore: ReminderStore?
     private var settingsStore: AppSettingsStore?
@@ -149,16 +146,17 @@ final class AppController: NSObject, NSWindowDelegate {
             .environmentObject(launchAtLoginController)
 
         let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: Self.settingsWindowSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: NSRect(origin: .zero, size: SettingsLayout.windowSize),
+            styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Settings"
         window.contentViewController = NSHostingController.tallyClearBackground(rootView: contentView)
         window.delegate = self
-        window.setContentSize(Self.settingsWindowSize)
-        window.contentMinSize = Self.settingsWindowMinimumSize
+        window.setContentSize(SettingsLayout.windowSize)
+        window.contentMinSize = SettingsLayout.windowSize
+        window.contentMaxSize = SettingsLayout.windowSize
         window.isReleasedWhenClosed = false
         window.contentView?.prepareForTallyTransparentWindow()
         return window

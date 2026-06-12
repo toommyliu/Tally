@@ -110,16 +110,29 @@ private struct TallyInsetGlassSurfaceModifier: ViewModifier {
 
     let cornerRadius: CGFloat
 
+    @ViewBuilder
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
-        content
-            .background {
-                shape.fill(Color.primary.opacity(colorScheme == .dark ? 0.045 : 0.035))
-            }
-            .overlay {
-                shape.stroke(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.055), lineWidth: 0.75)
-            }
+        if #available(macOS 26.0, *) {
+            content
+                .glassEffect(.regular.interactive(), in: shape)
+                .overlay {
+                    shape.stroke(sectionStrokeColor, lineWidth: 0.75)
+                }
+        } else {
+            content
+                .background {
+                    shape.fill(Color.primary.opacity(colorScheme == .dark ? 0.045 : 0.035))
+                }
+                .overlay {
+                    shape.stroke(sectionStrokeColor, lineWidth: 0.75)
+                }
+        }
+    }
+
+    private var sectionStrokeColor: Color {
+        Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.055)
     }
 }
 

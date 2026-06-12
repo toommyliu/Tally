@@ -74,7 +74,7 @@ printf 'Built %s app: %s\n' "${configuration}" "${app_path}"
 
 if [[ "${run_app}" -eq 1 ]]; then
     if [[ "${restart}" -eq 1 ]]; then
-        osascript -e 'tell application id "com.tommyliu.Tally" to quit' >/dev/null 2>&1 || true
+        osascript -e 'tell application id "com.app.tally" to quit' >/dev/null 2>&1 || true
         sleep 0.5
     fi
 

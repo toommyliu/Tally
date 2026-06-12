@@ -4,12 +4,7 @@ import Foundation
 
 @MainActor
 final class ReminderStore: ObservableObject {
-    enum AccessState: Equatable {
-        case unknown
-        case requesting
-        case authorized
-        case denied
-    }
+    typealias AccessState = ReminderAccessState
 
     @Published private(set) var accessState: AccessState = .unknown
     @Published private(set) var reminders: [ReminderItem] = []
@@ -18,14 +13,23 @@ final class ReminderStore: ObservableObject {
     @Published var errorMessage: String?
 
     private let eventStore = EKEventStore()
+    private let accessController: ReminderAccessController
     private var changeObserver: NSObjectProtocol?
 
     var activeListTitle: String {
-        eventStore.defaultCalendarForNewReminders()?.title ?? "Inbox"
+        guard accessState == .authorized else {
+            return "Inbox"
+        }
+
+        return eventStore.defaultCalendarForNewReminders()?.title ?? "Inbox"
     }
 
     var reminderListTitles: [String] {
-        eventStore
+        guard accessState == .authorized else {
+            return []
+        }
+
+        return eventStore
             .calendars(for: .reminder)
             .filter(\.allowsContentModifications)
             .map(\.title)
@@ -33,6 +37,8 @@ final class ReminderStore: ObservableObject {
     }
 
     init() {
+        accessController = ReminderAccessController(eventStore: eventStore)
+
         changeObserver = NotificationCenter.default.addObserver(
             forName: .EKEventStoreChanged,
             object: eventStore,
@@ -51,26 +57,39 @@ final class ReminderStore: ObservableObject {
     }
 
     func bootstrap() async {
-        await requestAccessIfNeeded()
+        refreshAccessState()
         await reload()
     }
 
-    func requestAccessIfNeeded() async {
-        switch EKEventStore.authorizationStatus(for: .reminder) {
-        case .fullAccess, .authorized:
-            accessState = .authorized
-        case .notDetermined:
-            accessState = .requesting
-            let granted = await requestFullReminderAccess()
-            accessState = granted ? .authorized : .denied
-        case .denied, .restricted, .writeOnly:
-            accessState = .denied
-        @unknown default:
-            accessState = .denied
+    func refreshAccessState() {
+        accessState = accessController.currentState()
+    }
+
+    func requestAccess() async {
+        let currentState = accessController.currentState()
+
+        guard currentState == .notDetermined || currentState == .unknown else {
+            accessState = currentState
+            return
         }
+
+        accessState = .requesting
+        accessState = await accessController.requestAccessIfNeeded()
+    }
+
+    func refreshAccessAfterUserRequest() async {
+        if accessState == .authorized {
+            refreshAccessState()
+        } else {
+            await requestAccess()
+        }
+
+        await reload()
     }
 
     func reload() async {
+        refreshAccessState()
+
         guard accessState == .authorized else {
             return
         }
@@ -94,9 +113,7 @@ final class ReminderStore: ObservableObject {
         notes: String?,
         suppressedInferredTokens: [QuickAddSuppressedToken] = []
     ) async {
-        await requestAccessIfNeeded()
-
-        guard accessState == .authorized else {
+        guard await ensureAccessForUserAction() else {
             return
         }
 
@@ -125,9 +142,7 @@ final class ReminderStore: ObservableObject {
     }
 
     func completeReminder(withID id: String) async {
-        await requestAccessIfNeeded()
-
-        guard accessState == .authorized else {
+        guard await ensureAccessForUserAction() else {
             return
         }
 
@@ -147,9 +162,7 @@ final class ReminderStore: ObservableObject {
     }
 
     func deleteReminder(withID id: String) async {
-        await requestAccessIfNeeded()
-
-        guard accessState == .authorized else {
+        guard await ensureAccessForUserAction() else {
             return
         }
 
@@ -187,14 +200,6 @@ final class ReminderStore: ObservableObject {
         )
     }
 
-    private func requestFullReminderAccess() async -> Bool {
-        await withCheckedContinuation { continuation in
-            eventStore.requestFullAccessToReminders { granted, _ in
-                continuation.resume(returning: granted)
-            }
-        }
-    }
-
     private func fetchIncompleteReminders() async throws -> [EKReminder] {
         let predicate = eventStore.predicateForIncompleteReminders(
             withDueDateStarting: nil,
@@ -224,6 +229,20 @@ final class ReminderStore: ObservableObject {
         }
 
         return eventStore.defaultCalendarForNewReminders()
+    }
+
+    private func ensureAccessForUserAction() async -> Bool {
+        switch accessController.currentState() {
+        case .authorized:
+            accessState = .authorized
+            return true
+        case .notDetermined, .unknown:
+            await requestAccess()
+            return accessState == .authorized
+        case .denied, .requesting:
+            accessState = accessController.currentState()
+            return false
+        }
     }
 
     private func combinedNotes(userNotes: String?, inlineNotes: String?, tags: [String]) -> String? {

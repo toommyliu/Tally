@@ -8,6 +8,7 @@ struct SettingsView: View {
 
     let onQuickAddShortcutChange: (GlobalShortcut) -> Bool
     let onTrayShortcutChange: (GlobalShortcut) -> Bool
+    let onPermissionRequestComplete: () -> Void
 
     var body: some View {
         ScrollView {
@@ -57,10 +58,10 @@ struct SettingsView: View {
                         }
                     }
 
-                    Button(reminderStore.accessState == .authorized ? "Refresh Permission" : "Grant Reminders Access") {
+                    Button(reminderStore.accessState.permissionButtonTitle) {
                         Task {
-                            await reminderStore.requestAccessIfNeeded()
-                            await reminderStore.reload()
+                            await reminderStore.refreshAccessAfterUserRequest()
+                            onPermissionRequestComplete()
                         }
                     }
                     .tallySecondaryButtonStyle()
@@ -185,12 +186,25 @@ private extension ReminderStore.AccessState {
         switch self {
         case .unknown:
             return "Unknown"
+        case .notDetermined:
+            return "Not Requested"
         case .requesting:
             return "Requesting"
         case .authorized:
             return "Granted"
         case .denied:
             return "Denied"
+        }
+    }
+
+    var permissionButtonTitle: String {
+        switch self {
+        case .authorized:
+            return "Refresh Permission"
+        case .requesting:
+            return "Requesting Access"
+        case .unknown, .notDetermined, .denied:
+            return "Grant Reminders Access"
         }
     }
 }

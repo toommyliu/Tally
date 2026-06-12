@@ -148,7 +148,7 @@ final class MenuBarController: NSObject {
             accessItem.isEnabled = false
             menu.addItem(accessItem)
 
-            let retryItem = NSMenuItem(title: "Request Access", action: #selector(refreshReminders), keyEquivalent: "")
+            let retryItem = NSMenuItem(title: "Request Access", action: #selector(requestRemindersAccess), keyEquivalent: "")
             retryItem.target = self
             retryItem.isEnabled = reminderStore.accessState != .requesting
             menu.addItem(retryItem)
@@ -267,8 +267,13 @@ final class MenuBarController: NSObject {
 
     @objc private func refreshReminders() {
         Task {
-            await reminderStore.requestAccessIfNeeded()
             await reminderStore.reload()
+        }
+    }
+
+    @objc private func requestRemindersAccess() {
+        Task {
+            await reminderStore.refreshAccessAfterUserRequest()
         }
     }
 
@@ -290,6 +295,8 @@ private extension ReminderStore.AccessState {
         switch self {
         case .unknown:
             return "Reminders not loaded"
+        case .notDetermined:
+            return "Reminders access not requested"
         case .requesting:
             return "Requesting access..."
         case .authorized:

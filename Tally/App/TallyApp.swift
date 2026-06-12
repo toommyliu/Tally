@@ -12,6 +12,9 @@ struct TallyApp: App {
                 },
                 onTrayShortcutChange: { shortcut in
                     appDelegate.appController.applyTrayShortcut(shortcut)
+                },
+                onPermissionRequestComplete: {
+                    appDelegate.appController.refocusSettingsAfterPermissionRequest()
                 }
             )
                 .environmentObject(appDelegate.reminderStore)

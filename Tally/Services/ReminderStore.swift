@@ -68,7 +68,7 @@ final class ReminderStore: ObservableObject {
     func requestAccess() async {
         let currentState = accessController.currentState()
 
-        guard currentState == .notDetermined || currentState == .unknown else {
+        guard currentState == .notDetermined else {
             accessState = currentState
             return
         }
@@ -232,17 +232,20 @@ final class ReminderStore: ObservableObject {
     }
 
     private func ensureAccessForUserAction() async -> Bool {
-        switch accessController.currentState() {
-        case .authorized:
+        let currentState = accessController.currentState()
+
+        if currentState == .authorized {
             accessState = .authorized
             return true
-        case .notDetermined, .unknown:
+        }
+
+        if currentState == .notDetermined {
             await requestAccess()
             return accessState == .authorized
-        case .denied, .requesting:
-            accessState = accessController.currentState()
-            return false
         }
+
+        accessState = currentState
+        return false
     }
 
     private func combinedNotes(userNotes: String?, inlineNotes: String?, tags: [String]) -> String? {

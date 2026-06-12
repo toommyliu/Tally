@@ -99,6 +99,16 @@ final class AppController: NSObject, NSWindowDelegate {
         settingsWindow.makeKeyAndOrderFront(nil)
     }
 
+    func refocusSettingsAfterPermissionRequest() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(nil)
+        } else {
+            NSApp.keyWindow?.makeKeyAndOrderFront(nil)
+        }
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard notification.object as? NSWindow === settingsWindow else {
             return
@@ -126,6 +136,11 @@ final class AppController: NSObject, NSWindowDelegate {
             onTrayShortcutChange: { [weak self] shortcut in
                 MainActor.assumeIsolated {
                     self?.applyTrayShortcut(shortcut) ?? false
+                }
+            },
+            onPermissionRequestComplete: { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.refocusSettingsAfterPermissionRequest()
                 }
             }
         )

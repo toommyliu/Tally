@@ -1,7 +1,11 @@
+import AppKit
 import SwiftUI
 
+enum SettingsLayout {
+    static let windowSize = CGSize(width: 492, height: 430)
+}
+
 struct SettingsView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var reminderStore: ReminderStore
     @EnvironmentObject private var settingsStore: AppSettingsStore
     @EnvironmentObject private var launchAtLoginController: LaunchAtLoginController
@@ -12,18 +16,20 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                settingsSection("Menu Bar") {
-                    settingRow("Badge") {
-                        Picker("Badge", selection: $settingsStore.badgeStyle) {
+            settingsContent {
+                settingsSection("Menu Bar", systemImage: "menubar.rectangle") {
+                    settingRow("Count display") {
+                        Picker("Count display", selection: $settingsStore.badgeStyle) {
                             ForEach(MenuBarBadgeStyle.allCases) { style in
                                 Text(style.title).tag(style)
                             }
                         }
                         .labelsHidden()
                         .pickerStyle(.segmented)
-                        .frame(width: 180)
+                        .frame(width: 192)
                     }
+
+                    settingsDivider
 
                     shortcutRow(
                         "Quick Add shortcut",
@@ -33,6 +39,8 @@ struct SettingsView: View {
                     ) { shortcut in
                         settingsStore.quickAddShortcut = shortcut
                     }
+
+                    settingsDivider
 
                     shortcutRow(
                         "Tray shortcut",
@@ -44,59 +52,78 @@ struct SettingsView: View {
                     }
                 }
 
-                settingsSection("Permissions") {
+                settingsSection("Permissions", systemImage: "checkmark.shield") {
                     settingRow("Reminders") {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 7) {
                             if reminderStore.isLoading || reminderStore.accessState == .requesting {
                                 ProgressView()
                                     .controlSize(.small)
                                     .scaleEffect(0.72)
                             }
 
-                            Text(reminderStore.accessState.displayTitle)
-                                .foregroundStyle(reminderStore.accessState == .authorized ? .green : .secondary)
+                            Label {
+                                Text(reminderStore.accessState.displayTitle)
+                            } icon: {
+                                Image(systemName: reminderStore.accessState.statusSymbolName)
+                                    .foregroundStyle(reminderStore.accessState.statusColor)
+                            }
+                            .labelStyle(.titleAndIcon)
                         }
                     }
 
-                    Button(reminderStore.accessState.permissionButtonTitle) {
-                        Task {
-                            await reminderStore.refreshAccessAfterUserRequest()
-                            onPermissionRequestComplete()
+                    settingsDivider
+
+                    settingRow("Access") {
+                        Button(reminderStore.accessState.permissionButtonTitle) {
+                            Task {
+                                await reminderStore.refreshAccessAfterUserRequest()
+                                onPermissionRequestComplete()
+                            }
                         }
+                        .tallySecondaryButtonStyle()
+                        .controlSize(.small)
+                        .disabled(reminderStore.accessState == .requesting)
                     }
-                    .tallySecondaryButtonStyle()
-                    .disabled(reminderStore.accessState == .requesting)
 
                     if let errorMessage = reminderStore.errorMessage {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                            .fixedSize(horizontal: false, vertical: true)
+                        settingsDivider
+                        errorRow(errorMessage)
                     }
                 }
 
-                settingsSection("Startup") {
-                    Toggle(
-                        "Open at Login",
-                        isOn: Binding(
-                            get: { launchAtLoginController.isEnabled },
-                            set: { launchAtLoginController.setEnabled($0) }
+                settingsSection("Startup", systemImage: "power") {
+                    settingRow("Open at Login") {
+                        Toggle(
+                            "Open at Login",
+                            isOn: Binding(
+                                get: { launchAtLoginController.isEnabled },
+                                set: { launchAtLoginController.setEnabled($0) }
+                            )
                         )
-                    )
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                    }
 
                     if let errorMessage = launchAtLoginController.errorMessage {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                            .fixedSize(horizontal: false, vertical: true)
+                        settingsDivider
+                        errorRow(errorMessage)
                     }
                 }
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 24)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
-        .frame(minWidth: 460, idealWidth: 460, minHeight: 420, idealHeight: 420, alignment: .topLeading)
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(
+            minWidth: SettingsLayout.windowSize.width,
+            idealWidth: SettingsLayout.windowSize.width,
+            minHeight: SettingsLayout.windowSize.height,
+            idealHeight: SettingsLayout.windowSize.height,
+            alignment: .top
+        )
         .background(.regularMaterial)
+        .background(SettingsWindowConfigurator(contentSize: SettingsLayout.windowSize))
     }
 
     private func shortcutRow(
@@ -117,7 +144,7 @@ struct SettingsView: View {
 
                     storeShortcut(shortcut)
                 }
-                .frame(width: 112)
+                .frame(width: 118)
 
                 Button {
                     guard shortcut != defaultShortcut,
@@ -129,55 +156,137 @@ struct SettingsView: View {
                     storeShortcut(defaultShortcut)
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 26, height: 24)
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(width: 22, height: 22)
                 }
-                .buttonStyle(.plain)
-                .background(resetButtonFill(isDisabled: shortcut == defaultShortcut), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.055), lineWidth: 0.75)
-                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
                 .disabled(shortcut == defaultShortcut)
                 .help("Reset shortcut")
             }
         }
     }
 
-    private func settingsSection<Content: View>(
-        _ title: String,
+    @ViewBuilder
+    private func settingsContent<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: 10) {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: 18) {
+                VStack(alignment: .leading, spacing: 18) {
+                    content()
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 18) {
                 content()
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .tallyInsetGlassSurface()
         }
+    }
+
+    private func settingsSection<Content: View>(
+        _ title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .labelStyle(.titleAndIcon)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(.secondary)
+            .padding(.leading, 4)
+
+            VStack(alignment: .leading, spacing: 0) {
+                content()
+            }
+            .tallyInsetGlassSurface(cornerRadius: 14)
+        }
+    }
+
+    private var settingsDivider: some View {
+        Divider()
+            .padding(.leading, 14)
+    }
+
+    private func errorRow(_ message: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.red)
+
+            Text(message)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.footnote)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func settingRow<Content: View>(
         _ title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        HStack {
+        HStack(alignment: .center, spacing: 12) {
             Text(title)
                 .foregroundStyle(.primary)
-            Spacer()
+            Spacer(minLength: 20)
             content()
         }
         .font(.system(size: 13))
-        .frame(minHeight: 28)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .frame(minHeight: 36)
+    }
+}
+
+private struct SettingsWindowConfigurator: NSViewRepresentable {
+    let contentSize: CGSize
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
     }
 
-    private func resetButtonFill(isDisabled: Bool) -> Color {
-        Color.primary.opacity(isDisabled ? 0.035 : 0.075)
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        configureWhenAttached(view, coordinator: context.coordinator)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        guard !context.coordinator.didConfigure else {
+            return
+        }
+
+        configureWhenAttached(view, coordinator: context.coordinator)
+    }
+
+    private func configureWhenAttached(_ view: NSView, coordinator: Coordinator) {
+        DispatchQueue.main.async {
+            guard !coordinator.didConfigure,
+                  let window = view.window
+            else {
+                return
+            }
+
+            window.styleMask.remove(.resizable)
+            window.setContentSize(contentSize)
+            window.contentMinSize = contentSize
+            window.contentMaxSize = contentSize
+            window.standardWindowButton(.zoomButton)?.isEnabled = false
+            coordinator.didConfigure = true
+        }
+    }
+
+    final class Coordinator {
+        var didConfigure = false
     }
 }
 
@@ -194,6 +303,32 @@ private extension ReminderStore.AccessState {
             return "Granted"
         case .denied:
             return "Denied"
+        }
+    }
+
+    var statusSymbolName: String {
+        switch self {
+        case .authorized:
+            return "checkmark.circle.fill"
+        case .denied:
+            return "xmark.circle.fill"
+        case .requesting:
+            return "clock.fill"
+        case .unknown, .notDetermined:
+            return "circle"
+        }
+    }
+
+    var statusColor: Color {
+        switch self {
+        case .authorized:
+            return .green
+        case .denied:
+            return .red
+        case .requesting:
+            return .secondary
+        case .unknown, .notDetermined:
+            return .secondary
         }
     }
 

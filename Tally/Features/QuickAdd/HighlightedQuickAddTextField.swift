@@ -18,19 +18,22 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
 
     func updateNSView(_ nsView: HighlightedQuickAddTextFieldView, context: Context) {
         context.coordinator.parent = self
+        let selectionRequest = selectedRangeRequest
+        let shouldRequestFocus = context.coordinator.consumeInitialFocusRequest() || selectionRequest != nil
+
         nsView.update(
             text: text,
             tokens: tokens,
             placeholder: placeholder,
-            selectedRange: selectedRangeRequest
+            selectedRange: selectionRequest
         )
 
         DispatchQueue.main.async {
-            if nsView.window?.firstResponder !== nsView.textView {
-                nsView.window?.makeFirstResponder(nsView.textView)
+            if shouldRequestFocus {
+                nsView.requestFocus()
             }
 
-            if selectedRangeRequest != nil {
+            if selectionRequest != nil {
                 selectedRangeRequest = nil
             }
         }
@@ -42,9 +45,15 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: HighlightedQuickAddTextField
+        private var shouldRequestInitialFocus = true
 
         init(parent: HighlightedQuickAddTextField) {
             self.parent = parent
+        }
+
+        func consumeInitialFocusRequest() -> Bool {
+            defer { shouldRequestInitialFocus = false }
+            return shouldRequestInitialFocus
         }
 
         func textDidChange(_ notification: Notification) {
@@ -81,6 +90,7 @@ final class HighlightedQuickAddTextFieldView: NSView {
     private let placeholderLabel = NSTextField(labelWithString: "")
     private var lastText = ""
     private var lastTokens: [QuickAddToken] = []
+    private var hasPendingFocusRequest = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -115,6 +125,16 @@ final class HighlightedQuickAddTextFieldView: NSView {
             textView.setSelectedRange(clampedSelectedRange(selectedRange, textLength: (text as NSString).length))
             textView.scrollRangeToVisible(textView.selectedRange())
         }
+    }
+
+    func requestFocus() {
+        hasPendingFocusRequest = true
+        applyPendingFocusRequest()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        applyPendingFocusRequest()
     }
 
     private func configure() {
@@ -176,6 +196,18 @@ final class HighlightedQuickAddTextFieldView: NSView {
             placeholderLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
             placeholderLabel.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor, constant: -1)
         ])
+    }
+
+    private func applyPendingFocusRequest() {
+        guard hasPendingFocusRequest, let window else {
+            return
+        }
+
+        hasPendingFocusRequest = false
+
+        if window.firstResponder !== textView {
+            window.makeFirstResponder(textView)
+        }
     }
 
     private func attributedString(for text: String, tokens: [QuickAddToken]) -> NSAttributedString {

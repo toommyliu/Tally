@@ -128,9 +128,9 @@ struct QuickAddWindowView: View {
             cornerRadius: TallyChrome.panelCornerRadius,
             material: .regularMaterial,
             strokeOpacity: 0.16,
-            shadowOpacity: 0.22,
-            shadowRadius: 34,
-            shadowY: 16
+            shadowOpacity: TallyChrome.quickAddSurfaceShadowOpacity,
+            shadowRadius: TallyChrome.quickAddSurfaceShadowRadius,
+            shadowY: TallyChrome.quickAddSurfaceShadowY
         )
     }
 

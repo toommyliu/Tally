@@ -34,6 +34,8 @@
 		10000000000000000000001B /* ReminderFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011F /* ReminderFormattingTests.swift */; };
 		10000000000000000000001C /* ReminderAccessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000120 /* ReminderAccessController.swift */; };
 		10000000000000000000001D /* ReminderAccessControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000121 /* ReminderAccessControllerTests.swift */; };
+		10000000000000000000001E /* QuickAddWindowSnapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000122 /* QuickAddWindowSnapping.swift */; };
+		10000000000000000000001F /* QuickAddWindowSnappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000123 /* QuickAddWindowSnappingTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +80,8 @@
 		10000000000000000000011F /* ReminderFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderFormattingTests.swift; sourceTree = "<group>"; };
 		100000000000000000000120 /* ReminderAccessController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderAccessController.swift; sourceTree = "<group>"; };
 		100000000000000000000121 /* ReminderAccessControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderAccessControllerTests.swift; sourceTree = "<group>"; };
+		100000000000000000000122 /* QuickAddWindowSnapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowSnapping.swift; sourceTree = "<group>"; };
+		100000000000000000000123 /* QuickAddWindowSnappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowSnappingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -157,6 +161,7 @@
 				10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */,
 				10000000000000000000011D /* DueDatePickerPopover.swift */,
 				100000000000000000000112 /* HighlightedQuickAddTextField.swift */,
+				100000000000000000000122 /* QuickAddWindowSnapping.swift */,
 				10000000000000000000010F /* QuickAddWindowController.swift */,
 				100000000000000000000110 /* QuickAddWindowView.swift */,
 			);
@@ -200,6 +205,7 @@
 				10000000000000000000011B /* AppSettingsStoreTests.swift */,
 				10000000000000000000011F /* ReminderFormattingTests.swift */,
 				100000000000000000000121 /* ReminderAccessControllerTests.swift */,
+				100000000000000000000123 /* QuickAddWindowSnappingTests.swift */,
 			);
 			path = TallyTests;
 			sourceTree = "<group>";
@@ -342,6 +348,7 @@
 				100000000000000000000009 /* AppController.swift in Sources */,
 				10000000000000000000000A /* HotKeyController.swift in Sources */,
 				10000000000000000000000B /* QuickAddWindowController.swift in Sources */,
+				10000000000000000000001E /* QuickAddWindowSnapping.swift in Sources */,
 				10000000000000000000000C /* QuickAddWindowView.swift in Sources */,
 				10000000000000000000000D /* ReminderFormatting.swift in Sources */,
 				10000000000000000000000E /* HighlightedQuickAddTextField.swift in Sources */,
@@ -363,6 +370,7 @@
 				100000000000000000000017 /* AppSettingsStoreTests.swift in Sources */,
 				10000000000000000000001B /* ReminderFormattingTests.swift in Sources */,
 				10000000000000000000001D /* ReminderAccessControllerTests.swift in Sources */,
+				10000000000000000000001F /* QuickAddWindowSnappingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

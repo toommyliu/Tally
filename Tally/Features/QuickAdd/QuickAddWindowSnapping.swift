@@ -154,13 +154,12 @@ enum QuickAddDragHandleLayout {
 
     static func frame(
         panelSize: NSSize,
-        shadowPadding: CGFloat,
         cornerRadius: CGFloat
     ) -> NSRect {
-        let horizontalInset = shadowPadding + cornerRadius
+        let horizontalInset = cornerRadius
         return NSRect(
             x: horizontalInset,
-            y: panelSize.height - shadowPadding - height,
+            y: panelSize.height - height,
             width: max(0, panelSize.width - horizontalInset * 2),
             height: height
         )

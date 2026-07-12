@@ -102,6 +102,7 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         )
 
         panel.contentViewController = makeContentViewController(rootView: contentView)
+        panel.title = "Quick Add"
         panel.delegate = self
         panel.setContentSize(Self.windowSize)
         panel.contentMinSize = Self.windowSize
@@ -182,7 +183,6 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         }
         dragHandle.frame = QuickAddDragHandleLayout.frame(
             panelSize: Self.windowSize,
-            shadowPadding: TallyChrome.quickAddShadowPadding,
             cornerRadius: TallyChrome.panelCornerRadius
         )
         containerView.addSubview(dragHandle)
@@ -422,8 +422,7 @@ private final class QuickAddSnapGuideView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let surfacePadding = TallyChrome.quickAddShadowPadding
-        let surfaceRect = bounds.insetBy(dx: surfacePadding, dy: surfacePadding)
+        let surfaceRect = bounds
         let targetPath = NSBezierPath(
             roundedRect: surfaceRect,
             xRadius: TallyChrome.panelCornerRadius,

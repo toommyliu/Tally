@@ -4,6 +4,14 @@ import XCTest
 
 @MainActor
 final class ReminderAccessControllerTests: XCTestCase {
+    func testAccessStatesExposeTheAppropriateUserAction() {
+        XCTAssertEqual(ReminderAccessState.unknown.availableAction, .none)
+        XCTAssertEqual(ReminderAccessState.notDetermined.availableAction, .request)
+        XCTAssertEqual(ReminderAccessState.requesting.availableAction, .none)
+        XCTAssertEqual(ReminderAccessState.authorized.availableAction, .none)
+        XCTAssertEqual(ReminderAccessState.denied.availableAction, .openSystemSettings)
+    }
+
     func testCurrentStateDoesNotRequestWhenPermissionIsUndetermined() {
         var requestCount = 0
         let controller = ReminderAccessController(

@@ -3,6 +3,8 @@ import SwiftUI
 
 @MainActor
 final class AppController: NSObject, NSWindowDelegate {
+    private static let menuDismissalDelayNanoseconds: UInt64 = 120_000_000
+
     private var didConfigure = false
     private var reminderStore: ReminderStore?
     private var settingsStore: AppSettingsStore?
@@ -72,9 +74,14 @@ final class AppController: NSObject, NSWindowDelegate {
     }
 
     func showQuickAddAfterMenuDismissal() {
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            quickAddWindowController?.show()
+        performAfterMenuDismissal { [weak self] in
+            self?.quickAddWindowController?.show()
+        }
+    }
+
+    func showSettingsAfterMenuDismissal() {
+        performAfterMenuDismissal { [weak self] in
+            self?.showSettings()
         }
     }
 
@@ -103,6 +110,17 @@ final class AppController: NSObject, NSWindowDelegate {
             settingsWindow.makeKeyAndOrderFront(nil)
         } else {
             NSApp.keyWindow?.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    private func performAfterMenuDismissal(_ action: @escaping () -> Void) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: Self.menuDismissalDelayNanoseconds)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            action()
         }
     }
 

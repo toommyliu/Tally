@@ -148,10 +148,15 @@ final class MenuBarController: NSObject {
             accessItem.isEnabled = false
             menu.addItem(accessItem)
 
-            let retryItem = NSMenuItem(title: "Request Access", action: #selector(requestRemindersAccess), keyEquivalent: "")
-            retryItem.target = self
-            retryItem.isEnabled = reminderStore.accessState != .requesting
-            menu.addItem(retryItem)
+            if let actionTitle = reminderStore.accessState.menuActionTitle {
+                let accessActionItem = NSMenuItem(
+                    title: actionTitle,
+                    action: #selector(performRemindersAccessAction),
+                    keyEquivalent: ""
+                )
+                accessActionItem.target = self
+                menu.addItem(accessActionItem)
+            }
         } else if reminderStore.isLoading {
             let loadingItem = NSMenuItem(title: "Syncing reminders...", action: nil, keyEquivalent: "")
             loadingItem.isEnabled = false
@@ -271,14 +276,14 @@ final class MenuBarController: NSObject {
         }
     }
 
-    @objc private func requestRemindersAccess() {
+    @objc private func performRemindersAccessAction() {
         Task {
-            await reminderStore.refreshAccessAfterUserRequest()
+            await reminderStore.performAccessAction()
         }
     }
 
     @objc private func openSettings() {
-        appController.showSettings()
+        appController.showSettingsAfterMenuDismissal()
     }
 
     @objc private func quit() {
@@ -294,15 +299,26 @@ private extension ReminderStore.AccessState {
     var menuTitle: String {
         switch self {
         case .unknown:
-            return "Reminders not loaded"
+            return "Checking Reminders access..."
         case .notDetermined:
-            return "Reminders access not requested"
+            return "Tally needs Reminders access"
         case .requesting:
-            return "Requesting access..."
+            return "Waiting for Reminders access..."
         case .authorized:
             return "Reminders ready"
         case .denied:
-            return "Reminders access denied"
+            return "Reminders access is off"
+        }
+    }
+
+    var menuActionTitle: String? {
+        switch availableAction {
+        case .request:
+            return "Allow Reminders Access..."
+        case .openSystemSettings:
+            return "Open System Settings..."
+        case .none:
+            return nil
         }
     }
 }

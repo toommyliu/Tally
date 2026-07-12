@@ -6,6 +6,7 @@ struct DueDatePickerPopover: View {
     @State private var includesTime: Bool
     @State private var hour: Int
     @State private var minute: Int
+    @FocusState private var focusedDay: Date?
 
     let initialComponents: DateComponents?
     let onCancel: () -> Void
@@ -13,7 +14,7 @@ struct DueDatePickerPopover: View {
     let onDone: (QuickAddDueDateSelection) -> Void
 
     private let calendar = Calendar.current
-    private let weekdayColumns = Array(repeating: GridItem(.fixed(31), spacing: 4), count: 7)
+    private let weekdayColumns = Array(repeating: GridItem(.fixed(29), spacing: 2), count: 7)
 
     init(
         initialComponents: DateComponents?,
@@ -40,17 +41,24 @@ struct DueDatePickerPopover: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             calendarHeader
             weekdayHeader
             calendarGrid
             Divider()
-                .opacity(0.55)
+                .opacity(0.45)
             timeSection
+            Divider()
+                .opacity(0.45)
             footer
         }
-        .padding(12)
-        .frame(width: 276)
+        .padding(10)
+        .frame(width: 240)
+        .onAppear {
+            DispatchQueue.main.async {
+                focusedDay = calendar.startOfDay(for: selectedDate)
+            }
+        }
     }
 
     private var calendarHeader: some View {
@@ -74,25 +82,27 @@ struct DueDatePickerPopover: View {
     }
 
     private var weekdayHeader: some View {
-        LazyVGrid(columns: weekdayColumns, spacing: 4) {
-            ForEach(weekdaySymbols, id: \.self) { symbol in
+        LazyVGrid(columns: weekdayColumns, spacing: 2) {
+            ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                 Text(symbol)
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 31, height: 14)
+                    .frame(width: 29, height: 12)
             }
         }
     }
 
     private var calendarGrid: some View {
-        LazyVGrid(columns: weekdayColumns, spacing: 4) {
+        LazyVGrid(columns: weekdayColumns, spacing: 2) {
             ForEach(calendarDays) { day in
                 CalendarDayButton(
                     day: day,
                     isSelected: calendar.isDate(day.date, inSameDayAs: selectedDate),
-                    isToday: calendar.isDateInToday(day.date)
+                    isToday: calendar.isDateInToday(day.date),
+                    focusedDay: $focusedDay
                 ) {
                     selectedDate = preservingTime(from: selectedDate, on: day.date)
+                    focusedDay = calendar.startOfDay(for: day.date)
                     if !calendar.isDate(day.date, equalTo: visibleMonth, toGranularity: .month) {
                         visibleMonth = calendar.startOfMonth(for: day.date)
                     }
@@ -102,45 +112,49 @@ struct DueDatePickerPopover: View {
     }
 
     private var timeSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle("Time", isOn: $includesTime)
+        HStack(spacing: 6) {
+            Label("Time", systemImage: "clock")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Toggle("Include time", isOn: $includesTime)
+                .labelsHidden()
                 .toggleStyle(.switch)
-                .controlSize(.small)
-                .font(.system(size: 12, weight: .medium))
+                .controlSize(.mini)
 
-            VStack(alignment: .leading, spacing: 8) {
-                timeControls
+            Spacer(minLength: 2)
+
+            if includesTime {
+                editableTimeControls
+                    .transition(.opacity)
+            } else {
+                Text("No time")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
             }
-            .opacity(includesTime ? 1 : 0.35)
         }
-        .frame(height: 58, alignment: .top)
-    }
-
-    @ViewBuilder
-    private var timeControls: some View {
-        if includesTime {
-            editableTimeControls
-        } else {
-            disabledTimeControls
-        }
+        .frame(height: 24)
+        .animation(.easeOut(duration: 0.12), value: includesTime)
     }
 
     private var editableTimeControls: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 3) {
             TextField("Hour", value: hour12Binding, formatter: Self.hourFormatter)
                 .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12, weight: .medium).monospacedDigit())
+                .controlSize(.mini)
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
                 .multilineTextAlignment(.center)
-                .frame(width: 50)
+                .frame(width: 31)
                 .accessibilityLabel("Hour")
 
             timeSeparator
 
             TextField("Minute", value: minuteBinding, formatter: Self.minuteFormatter)
                 .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12, weight: .medium).monospacedDigit())
+                .controlSize(.mini)
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
                 .multilineTextAlignment(.center)
-                .frame(width: 54)
+                .frame(width: 34)
                 .accessibilityLabel("Minute")
 
             Picker("Meridiem", selection: meridiemBinding) {
@@ -148,24 +162,15 @@ struct DueDatePickerPopover: View {
                 Text("PM").tag(Meridiem.pm)
             }
             .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(width: 76)
+            .pickerStyle(.menu)
+            .controlSize(.mini)
+            .frame(width: 48)
         }
-    }
-
-    private var disabledTimeControls: some View {
-        HStack(spacing: 6) {
-            DisabledTimeField(text: "\(hour12Binding.wrappedValue)", width: 50)
-            timeSeparator
-            DisabledTimeField(text: String(format: "%02d", minute), width: 54)
-            DisabledTimeField(text: meridiem == .am ? "AM" : "PM", width: 76)
-        }
-        .accessibilityHidden(true)
     }
 
     private var timeSeparator: some View {
         Text(":")
-            .font(.system(size: 13, weight: .semibold).monospacedDigit())
+            .font(.system(size: 11, weight: .semibold).monospacedDigit())
             .foregroundStyle(.secondary)
     }
 
@@ -174,7 +179,8 @@ struct DueDatePickerPopover: View {
             Button("Clear") {
                 onClear()
             }
-            .tallySecondaryButtonStyle()
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
             .help(initialComponents == nil ? "Dismiss without a date" : "Clear due date")
 
             Spacer()
@@ -182,15 +188,18 @@ struct DueDatePickerPopover: View {
             Button("Cancel") {
                 onCancel()
             }
-            .tallySecondaryButtonStyle()
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
 
             Button("Done") {
                 onDone(QuickAddDueDateSelection(date: selectedDateWithTime, includesTime: includesTime))
             }
-            .tallyPrimaryButtonStyle()
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
             .keyboardShortcut(.defaultAction)
         }
-        .font(.system(size: 12))
+        .font(.system(size: 11, weight: .medium))
+        .frame(height: 24)
     }
 
     private var selectedDateWithTime: Date {
@@ -340,22 +349,40 @@ private struct CalendarDayButton: View {
     let day: CalendarDay
     let isSelected: Bool
     let isToday: Bool
+    let focusedDay: FocusState<Date?>.Binding
     let action: () -> Void
+
+    private var isFocused: Bool {
+        focusedDay.wrappedValue.map { Calendar.current.isDate($0, inSameDayAs: day.date) } ?? false
+    }
 
     var body: some View {
         Button(action: action) {
             Text("\(day.dayNumber)")
                 .font(.system(size: 11, weight: isSelected ? .semibold : .regular).monospacedDigit())
                 .foregroundStyle(foregroundStyle)
-                .frame(width: 31, height: 25)
-                .background(backgroundStyle, in: RoundedRectangle(cornerRadius: TallyChrome.controlCornerRadius, style: .continuous))
+                .frame(width: 22, height: 22)
+                .background(backgroundStyle, in: Circle())
                 .overlay {
-                    RoundedRectangle(cornerRadius: TallyChrome.controlCornerRadius, style: .continuous)
-                        .stroke(todayStrokeStyle, lineWidth: isToday && !isSelected ? 1 : 0)
+                    ZStack {
+                        Circle()
+                            .stroke(todayStrokeStyle, lineWidth: isToday && !isSelected ? 1 : 0)
+
+                        Circle()
+                            .stroke(focusStrokeStyle, lineWidth: isFocused ? 1.5 : 0)
+                    }
                 }
+                .frame(width: 29, height: 22)
         }
         .buttonStyle(.plain)
-        .contentShape(RoundedRectangle(cornerRadius: TallyChrome.controlCornerRadius, style: .continuous))
+        .focusable()
+        .focused(focusedDay, equals: Calendar.current.startOfDay(for: day.date))
+        .focusEffectDisabled()
+        .onKeyPress(keys: [.space, .return]) { _ in
+            action()
+            return .handled
+        }
+        .contentShape(Rectangle())
         .onHover { isHovering = $0 }
         .accessibilityLabel(day.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
     }
@@ -386,6 +413,10 @@ private struct CalendarDayButton: View {
 
     private var todayStrokeStyle: Color {
         .accentColor.opacity(day.isInVisibleMonth ? 0.7 : 0.35)
+    }
+
+    private var focusStrokeStyle: Color {
+        isSelected ? .white.opacity(0.92) : .accentColor.opacity(0.88)
     }
 }
 
@@ -439,23 +470,6 @@ private struct TodayHeaderButton: View {
 
     private var backgroundStyle: Color {
         Color.accentColor.opacity(isHovering ? 0.16 : 0.10)
-    }
-}
-
-private struct DisabledTimeField: View {
-    let text: String
-    let width: CGFloat
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 12, weight: .medium).monospacedDigit())
-            .foregroundStyle(.secondary)
-            .frame(width: width, height: 20)
-            .background(.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(.secondary.opacity(0.10), lineWidth: 1)
-            }
     }
 }
 

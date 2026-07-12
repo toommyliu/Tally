@@ -1,6 +1,95 @@
 import AppKit
 import SwiftUI
 
+struct QuickAddNotesField: NSViewRepresentable {
+    @Binding var text: String
+
+    let focusRequestID: Int
+    let onForwardTab: () -> Void
+    let onBackwardTab: () -> Void
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField()
+        textField.delegate = context.coordinator
+        textField.isBezeled = false
+        textField.drawsBackground = false
+        textField.focusRingType = .none
+        textField.font = .systemFont(ofSize: 13)
+        textField.textColor = .secondaryLabelColor
+        textField.placeholderString = "Notes"
+        textField.usesSingleLineMode = false
+        textField.maximumNumberOfLines = 3
+        textField.lineBreakMode = .byWordWrapping
+        return textField
+    }
+
+    func updateNSView(_ textField: NSTextField, context: Context) {
+        context.coordinator.parent = self
+
+        if textField.stringValue != text {
+            textField.stringValue = text
+        }
+
+        if context.coordinator.consumeFocusRequest(focusRequestID) {
+            DispatchQueue.main.async {
+                textField.window?.makeFirstResponder(textField)
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: QuickAddNotesField
+        private var lastFocusRequestID = 0
+
+        init(parent: QuickAddNotesField) {
+            self.parent = parent
+        }
+
+        func consumeFocusRequest(_ focusRequestID: Int) -> Bool {
+            guard focusRequestID != lastFocusRequestID else {
+                return false
+            }
+
+            lastFocusRequestID = focusRequestID
+            return true
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField else {
+                return
+            }
+
+            parent.text = textField.stringValue
+        }
+
+        func control(
+            _ control: NSControl,
+            textView: NSTextView,
+            doCommandBy commandSelector: Selector
+        ) -> Bool {
+            if commandSelector == #selector(NSResponder.insertTab(_:)) {
+                DispatchQueue.main.async { [weak self] in
+                    self?.parent.onForwardTab()
+                }
+                return true
+            }
+
+            if commandSelector == #selector(NSResponder.insertBacktab(_:)) {
+                DispatchQueue.main.async { [weak self] in
+                    self?.parent.onBackwardTab()
+                }
+                return true
+            }
+
+            return false
+        }
+    }
+}
+
 struct HighlightedQuickAddTextField: NSViewRepresentable {
     @Binding var text: String
     @Binding var selectedRangeRequest: NSRange?
@@ -9,6 +98,8 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
     let placeholder: String
     let onSubmit: () -> Void
     let onEscape: (NSRange) -> Bool
+    let onForwardTab: () -> Void
+    let onBackwardTab: () -> Void
 
     func makeNSView(context: Context) -> HighlightedQuickAddTextFieldView {
         let view = HighlightedQuickAddTextFieldView()
@@ -76,6 +167,16 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
 
             if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
                 return parent.onEscape(textView.selectedRange())
+            }
+
+            if commandSelector == #selector(NSResponder.insertTab(_:)) {
+                parent.onForwardTab()
+                return true
+            }
+
+            if commandSelector == #selector(NSResponder.insertBacktab(_:)) {
+                parent.onBackwardTab()
+                return true
             }
 
             return false

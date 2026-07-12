@@ -46,15 +46,14 @@ final class QuickAddWindowSnappingTests: XCTestCase {
         XCTAssertNil(restoredOrigin)
     }
 
-    func testDragHandleOccupiesTopPaddingInsideVisibleSurface() {
+    func testDragHandleOccupiesTopEdgeInsideVisibleSurface() {
         let frame = QuickAddDragHandleLayout.frame(
-            panelSize: NSSize(width: 596, height: 244),
-            shadowPadding: 28,
+            panelSize: NSSize(width: 540, height: 188),
             cornerRadius: 20
         )
 
-        XCTAssertEqual(frame, NSRect(x: 48, y: 198, width: 500, height: 18))
-        XCTAssertEqual(frame.maxY, 244 - 28)
+        XCTAssertEqual(frame, NSRect(x: 20, y: 170, width: 500, height: 18))
+        XCTAssertEqual(frame.maxY, 188)
         XCTAssertGreaterThan(frame.minY, 0)
     }
 

@@ -58,6 +58,11 @@ final class ReminderStore: ObservableObject {
 
     func bootstrap() async {
         refreshAccessState()
+
+        if accessState == .notDetermined {
+            await requestAccess()
+        }
+
         await reload()
     }
 
@@ -77,14 +82,22 @@ final class ReminderStore: ObservableObject {
         accessState = await accessController.requestAccessIfNeeded()
     }
 
-    func refreshAccessAfterUserRequest() async {
-        if accessState == .authorized {
-            refreshAccessState()
-        } else {
+    @discardableResult
+    func performAccessAction() async -> ReminderAccessAction {
+        refreshAccessState()
+        let action = accessState.availableAction
+
+        switch action {
+        case .request:
             await requestAccess()
+            await reload()
+        case .openSystemSettings:
+            openRemindersPrivacySettings()
+        case .none:
+            break
         }
 
-        await reload()
+        return action
     }
 
     func reload() async {
@@ -198,6 +211,16 @@ final class ReminderStore: ObservableObject {
             at: url,
             configuration: NSWorkspace.OpenConfiguration()
         )
+    }
+
+    private func openRemindersPrivacySettings() {
+        guard let url = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
+        ) else {
+            return
+        }
+
+        NSWorkspace.shared.open(url)
     }
 
     private func fetchIncompleteReminders() async throws -> [EKReminder] {

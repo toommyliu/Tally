@@ -54,35 +54,37 @@ struct SettingsView: View {
 
                 settingsSection("Permissions", systemImage: "checkmark.shield") {
                     settingRow("Reminders") {
-                        HStack(spacing: 7) {
-                            if reminderStore.isLoading || reminderStore.accessState == .requesting {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .scaleEffect(0.72)
-                            }
+                        Group {
+                            switch reminderStore.accessState.availableAction {
+                            case .request, .openSystemSettings:
+                                Button(reminderStore.accessState.permissionButtonTitle) {
+                                    Task {
+                                        let action = await reminderStore.performAccessAction()
+                                        if action == .request {
+                                            onPermissionRequestComplete()
+                                        }
+                                    }
+                                }
+                                .tallySecondaryButtonStyle()
+                                .controlSize(.small)
+                            case .none:
+                                HStack(spacing: 7) {
+                                    if reminderStore.isLoading || reminderStore.accessState == .requesting {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                            .scaleEffect(0.72)
+                                    }
 
-                            Label {
-                                Text(reminderStore.accessState.displayTitle)
-                            } icon: {
-                                Image(systemName: reminderStore.accessState.statusSymbolName)
-                                    .foregroundStyle(reminderStore.accessState.statusColor)
+                                    Label {
+                                        Text(reminderStore.accessState.displayTitle)
+                                    } icon: {
+                                        Image(systemName: reminderStore.accessState.statusSymbolName)
+                                            .foregroundStyle(reminderStore.accessState.statusColor)
+                                    }
+                                    .labelStyle(.titleAndIcon)
+                                }
                             }
-                            .labelStyle(.titleAndIcon)
                         }
-                    }
-
-                    settingsDivider
-
-                    settingRow("Access") {
-                        Button(reminderStore.accessState.permissionButtonTitle) {
-                            Task {
-                                await reminderStore.refreshAccessAfterUserRequest()
-                                onPermissionRequestComplete()
-                            }
-                        }
-                        .tallySecondaryButtonStyle()
-                        .controlSize(.small)
-                        .disabled(reminderStore.accessState == .requesting)
                     }
 
                     if let errorMessage = reminderStore.errorMessage {
@@ -294,15 +296,15 @@ private extension ReminderStore.AccessState {
     var displayTitle: String {
         switch self {
         case .unknown:
-            return "Unknown"
+            return "Checking"
         case .notDetermined:
-            return "Not Requested"
+            return "Access Needed"
         case .requesting:
-            return "Requesting"
+            return "Requesting Access"
         case .authorized:
-            return "Granted"
+            return "Full Access"
         case .denied:
-            return "Denied"
+            return "Access Off"
         }
     }
 
@@ -333,13 +335,13 @@ private extension ReminderStore.AccessState {
     }
 
     var permissionButtonTitle: String {
-        switch self {
-        case .authorized:
-            return "Refresh Permission"
-        case .requesting:
-            return "Requesting Access"
-        case .unknown, .notDetermined, .denied:
-            return "Grant Reminders Access"
+        switch availableAction {
+        case .request:
+            return "Allow Access"
+        case .openSystemSettings:
+            return "Open System Settings"
+        case .none:
+            return "Checking Access"
         }
     }
 }

@@ -9,6 +9,25 @@ enum ReminderAccessState: Equatable {
     case denied
 }
 
+enum ReminderAccessAction: Equatable {
+    case request
+    case openSystemSettings
+    case none
+}
+
+extension ReminderAccessState {
+    var availableAction: ReminderAccessAction {
+        switch self {
+        case .notDetermined:
+            return .request
+        case .denied:
+            return .openSystemSettings
+        case .unknown, .requesting, .authorized:
+            return .none
+        }
+    }
+}
+
 @MainActor
 final class ReminderAccessController {
     private let authorizationStatus: () -> EKAuthorizationStatus

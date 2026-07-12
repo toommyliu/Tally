@@ -1,5 +1,16 @@
 import SwiftUI
 
+private enum QuickAddFocusTarget: Hashable {
+    case dueDate
+    case list
+    case priority
+    case tag
+    case help
+    case keepOpen
+    case cancel
+    case submit
+}
+
 struct QuickAddWindowView: View {
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var reminderStore: ReminderStore
@@ -9,6 +20,8 @@ struct QuickAddWindowView: View {
     @State private var keepsOpenAfterAdd = false
     @State private var suppressedInferredTokens: [QuickAddSuppressedToken] = []
     @State private var quickAddSelectionRequest: NSRange?
+    @State private var notesFocusRequestID = 0
+    @FocusState private var focusedControl: QuickAddFocusTarget?
 
     let onCancel: () -> Void
     let onSubmit: (String, String, Bool, [QuickAddSuppressedToken]) -> Void
@@ -23,7 +36,6 @@ struct QuickAddWindowView: View {
 
     var body: some View {
         quickAddSurface
-            .padding(TallyChrome.quickAddShadowPadding)
             .frame(width: TallyChrome.quickAddPanelSize.width, height: TallyChrome.quickAddPanelSize.height)
         .onChange(of: quickAddText) { _, newValue in
             suppressedInferredTokens = suppressedInferredTokens.filter { suppression in
@@ -45,19 +57,34 @@ struct QuickAddWindowView: View {
                     tokens: parsedPreview.usedTokens,
                     placeholder: "New reminder",
                     onSubmit: addReminder,
-                    onEscape: handleEscape
+                    onEscape: handleEscape,
+                    onForwardTab: {
+                        notesFocusRequestID += 1
+                    },
+                    onBackwardTab: {
+                        focusedControl = parsedPreview.title.isEmpty ? .cancel : .submit
+                    }
                 )
                 .frame(height: 25)
 
-                TextField("Notes", text: $notes, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1...3)
+                QuickAddNotesField(
+                    text: $notes,
+                    focusRequestID: notesFocusRequestID,
+                    onForwardTab: {
+                        focusedControl = .dueDate
+                    },
+                    onBackwardTab: {
+                        quickAddSelectionRequest = NSRange(
+                            location: (quickAddText as NSString).length,
+                            length: 0
+                        )
+                    }
+                )
 
                 QuickAddPreview(
                     fields: parsedPreview,
                     fallbackListTitle: reminderStore.activeListTitle,
+                    focusedControl: $focusedControl,
                     onApplyDueDateSelection: applyDueDateSelection,
                     onApplyListSelection: applyListSelection,
                     onApplyPrioritySelection: applyPrioritySelection,
@@ -85,6 +112,19 @@ struct QuickAddWindowView: View {
                         .background(.secondary.opacity(isShowingTokenHelp ? 0.12 : 0), in: Circle())
                 }
                 .buttonStyle(.plain)
+                .focusable()
+                .focused($focusedControl, equals: .help)
+                .focusEffectDisabled()
+                .overlay {
+                    Circle()
+                        .strokeBorder(
+                            focusedControl == .help ? Color.accentColor.opacity(0.82) : .clear,
+                            lineWidth: 1.25
+                        )
+                }
+                .quickAddKeyboardActivation {
+                    isShowingTokenHelp.toggle()
+                }
                 .foregroundStyle(.secondary)
                 .onHover { isHovering in
                     isShowingTokenHelp = isHovering
@@ -99,9 +139,18 @@ struct QuickAddWindowView: View {
                 Toggle("Keep open", isOn: $keepsOpenAfterAdd)
                     .toggleStyle(.checkbox)
                     .font(.system(size: 12))
+                    .focusable()
+                    .focused($focusedControl, equals: .keepOpen)
+                    .focusEffectDisabled()
+                    .quickAddKeyboardActivation {
+                        keepsOpenAfterAdd.toggle()
+                    }
 
                 Button("Cancel", action: onCancel)
                     .tallySecondaryButtonStyle()
+                    .focusable()
+                    .focused($focusedControl, equals: .cancel)
+                    .quickAddKeyboardActivation(onCancel)
                     .keyboardShortcut(.cancelAction)
 
                 Button(action: addReminder) {
@@ -116,21 +165,21 @@ struct QuickAddWindowView: View {
                     }
                 }
                 .tallyPrimaryButtonStyle()
+                .focusable()
+                .focused($focusedControl, equals: .submit)
+                .quickAddKeyboardActivation(addReminder)
                 .disabled(parsedPreview.title.isEmpty || reminderStore.isSaving)
                 .keyboardShortcut(.return, modifiers: .command)
             }
             .padding(.horizontal, 18)
             .frame(height: 58)
-            .background(Color.primary.opacity(colorScheme == .dark ? 0.035 : 0.026))
         }
-        .frame(width: TallyChrome.quickAddWindowSize.width, height: TallyChrome.quickAddWindowSize.height)
+        .frame(width: TallyChrome.quickAddPanelSize.width, height: TallyChrome.quickAddPanelSize.height)
+        .clipShape(RoundedRectangle(cornerRadius: TallyChrome.panelCornerRadius, style: .continuous))
         .tallyChromeSurface(
             cornerRadius: TallyChrome.panelCornerRadius,
             material: .regularMaterial,
-            strokeOpacity: 0.16,
-            shadowOpacity: TallyChrome.quickAddSurfaceShadowOpacity,
-            shadowRadius: TallyChrome.quickAddSurfaceShadowRadius,
-            shadowY: TallyChrome.quickAddSurfaceShadowY
+            strokeOpacity: 0.16
         )
     }
 
@@ -256,6 +305,7 @@ private struct QuickAddPreview: View {
 
     let fields: QuickAddFields
     let fallbackListTitle: String
+    let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
     let onApplyDueDateSelection: (QuickAddDueDateSelection?) -> Void
     let onApplyListSelection: (String) -> Void
     let onApplyPrioritySelection: (Int) -> Void
@@ -266,22 +316,29 @@ private struct QuickAddPreview: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                DatePickerChip(fields: fields, onApplySelection: onApplyDueDateSelection)
+                DatePickerChip(
+                    fields: fields,
+                    focusedControl: focusedControl,
+                    onApplySelection: onApplyDueDateSelection
+                )
 
                 ListPickerChip(
                     title: fields.listName ?? fallbackListTitle,
                     isPlaceholder: fields.listName == nil,
                     listTitles: reminderStore.reminderListTitles,
+                    focusedControl: focusedControl,
                     onSelect: onApplyListSelection
                 )
 
                 PriorityPickerChip(
                     priority: fields.priority,
+                    focusedControl: focusedControl,
                     onSelect: onApplyPrioritySelection
                 )
 
                 TagPickerChip(
                     tags: fields.tags,
+                    focusedControl: focusedControl,
                     onAdd: onAddTagEntry,
                     onEdit: onEditTag,
                     onRemove: onRemoveTag
@@ -297,6 +354,7 @@ private struct TagPickerChip: View {
     @State private var isShowingPicker = false
 
     let tags: [String]
+    let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
     let onAdd: () -> Void
     let onEdit: (Int) -> Void
     let onRemove: (Int) -> Void
@@ -326,6 +384,10 @@ private struct TagPickerChip: View {
         }
         .buttonStyle(.plain)
         .fixedSize()
+        .quickAddMetadataFocus(focusedControl, equals: .tag)
+        .quickAddKeyboardActivation {
+            isShowingPicker.toggle()
+        }
         .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
             QuickAddTagPickerPopover(
                 tags: tags,
@@ -340,6 +402,7 @@ private struct TagPickerChip: View {
                 onRemove: onRemove
             )
         }
+        .restoreQuickAddFocus(when: isShowingPicker, to: .tag, using: focusedControl)
         .accessibilityLabel("Tags")
     }
 }
@@ -442,6 +505,7 @@ private struct DatePickerChip: View {
     @State private var isShowingPicker = false
 
     let fields: QuickAddFields
+    let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
     let onApplySelection: (QuickAddDueDateSelection?) -> Void
 
     var body: some View {
@@ -456,6 +520,10 @@ private struct DatePickerChip: View {
             )
         }
         .buttonStyle(.plain)
+        .quickAddMetadataFocus(focusedControl, equals: .dueDate)
+        .quickAddKeyboardActivation {
+            isShowingPicker.toggle()
+        }
         .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
             DueDatePickerPopover(
                 initialComponents: fields.dueDate,
@@ -472,6 +540,7 @@ private struct DatePickerChip: View {
                 }
             )
         }
+        .restoreQuickAddFocus(when: isShowingPicker, to: .dueDate, using: focusedControl)
     }
 }
 
@@ -481,6 +550,7 @@ private struct ListPickerChip: View {
     let title: String
     let isPlaceholder: Bool
     let listTitles: [String]
+    let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
     let onSelect: (String) -> Void
 
     var body: some View {
@@ -497,6 +567,10 @@ private struct ListPickerChip: View {
         }
         .buttonStyle(.plain)
         .fixedSize()
+        .quickAddMetadataFocus(focusedControl, equals: .list)
+        .quickAddKeyboardActivation {
+            isShowingPicker.toggle()
+        }
         .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
             QuickAddListPickerPopover(
                 listTitles: listTitles,
@@ -506,6 +580,7 @@ private struct ListPickerChip: View {
                 }
             )
         }
+        .restoreQuickAddFocus(when: isShowingPicker, to: .list, using: focusedControl)
         .accessibilityLabel("Reminder list")
     }
 }
@@ -514,6 +589,7 @@ private struct PriorityPickerChip: View {
     @State private var isShowingPicker = false
 
     let priority: Int
+    let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
     let onSelect: (Int) -> Void
 
     private var isPlaceholder: Bool {
@@ -534,6 +610,10 @@ private struct PriorityPickerChip: View {
         }
         .buttonStyle(.plain)
         .fixedSize()
+        .quickAddMetadataFocus(focusedControl, equals: .priority)
+        .quickAddKeyboardActivation {
+            isShowingPicker.toggle()
+        }
         .popover(isPresented: $isShowingPicker, arrowEdge: .bottom) {
             QuickAddPriorityPickerPopover(
                 selectedPriority: priority,
@@ -543,6 +623,7 @@ private struct PriorityPickerChip: View {
                 }
             )
         }
+        .restoreQuickAddFocus(when: isShowingPicker, to: .priority, using: focusedControl)
         .accessibilityLabel("Priority")
     }
 }
@@ -778,6 +859,41 @@ private struct QuickAddChipSurface: ViewModifier {
 }
 
 private extension View {
+    func restoreQuickAddFocus(
+        when isPresented: Bool,
+        to target: QuickAddFocusTarget,
+        using focusedControl: FocusState<QuickAddFocusTarget?>.Binding
+    ) -> some View {
+        onChange(of: isPresented) { _, isPresented in
+            if !isPresented {
+                focusedControl.wrappedValue = target
+            }
+        }
+    }
+
+    func quickAddKeyboardActivation(_ action: @escaping () -> Void) -> some View {
+        onKeyPress(keys: [.space, .return]) { _ in
+            action()
+            return .handled
+        }
+    }
+
+    func quickAddMetadataFocus(
+        _ focusedControl: FocusState<QuickAddFocusTarget?>.Binding,
+        equals target: QuickAddFocusTarget
+    ) -> some View {
+        focusable()
+            .focused(focusedControl, equals: target)
+            .focusEffectDisabled()
+            .overlay {
+                RoundedRectangle(cornerRadius: TallyChrome.controlCornerRadius, style: .continuous)
+                    .strokeBorder(
+                        focusedControl.wrappedValue == target ? Color.accentColor.opacity(0.82) : .clear,
+                        lineWidth: 1.25
+                    )
+            }
+    }
+
     func quickAddChipSurface(
         tint: Color,
         isPlaceholder: Bool,

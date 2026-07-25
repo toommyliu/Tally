@@ -49,6 +49,31 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.trayShortcut, storedShortcut)
     }
 
+    func testUsesPredictableQuickAddDefaultsWhenUnset() {
+        let store = AppSettingsStore(userDefaults: makeUserDefaults())
+
+        XCTAssertEqual(store.quickAddBehavior, .closeAfterAdding)
+        XCTAssertNil(store.defaultListIdentifier)
+    }
+
+    func testPersistsQuickAddPreferences() {
+        let userDefaults = makeUserDefaults()
+        var store: AppSettingsStore? = AppSettingsStore(userDefaults: userDefaults)
+        store?.quickAddBehavior = .keepOpen
+        store?.defaultListIdentifier = "work-id"
+        store = nil
+
+        let restored = AppSettingsStore(userDefaults: userDefaults)
+
+        XCTAssertEqual(restored.quickAddBehavior, .keepOpen)
+        XCTAssertEqual(restored.defaultListIdentifier, "work-id")
+    }
+
+    func testShortcutTitlesSeparateIndividualKeys() {
+        XCTAssertEqual(GlobalShortcut.defaultQuickAddValue.displayTitle, "⌥ Space")
+        XCTAssertEqual(GlobalShortcut.defaultTrayValue.displayTitle, "⌃ ⌘ T")
+    }
+
     private func makeUserDefaults() -> UserDefaults {
         let suiteName = "TallyTests.\(UUID().uuidString)"
         let userDefaults = UserDefaults(suiteName: suiteName)!

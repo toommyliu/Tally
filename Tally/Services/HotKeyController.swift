@@ -3,7 +3,7 @@ import Foundation
 import OSLog
 
 final class HotKeyController {
-    private static let logger = Logger(subsystem: "com.tommyliu.Tally", category: "HotKeyController")
+    private static let logger = Logger(subsystem: "com.app.tally", category: "HotKeyController")
 
     private let hotKeyID: EventHotKeyID
     private let action: @MainActor () -> Void
@@ -24,16 +24,6 @@ final class HotKeyController {
         self.keyCode = UInt32(shortcut.keyCode)
         self.modifierFlags = shortcut.carbonModifierFlags
         self.hasValidShortcut = shortcut.isValid
-        self.action = action
-        installEventHandler()
-        _ = register()
-    }
-
-    init(id: UInt32, keyCode: UInt32, modifierFlags: UInt32, action: @escaping @MainActor () -> Void) {
-        self.hotKeyID = EventHotKeyID(signature: fourCharacterCode("Taly"), id: id)
-        self.keyCode = keyCode
-        self.modifierFlags = modifierFlags
-        self.hasValidShortcut = true
         self.action = action
         installEventHandler()
         _ = register()

@@ -7,19 +7,24 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         width: TallyChrome.quickAddPanelSize.width,
         height: TallyChrome.quickAddPanelSize.height
     )
+    private static let maximumWindowHeight: CGFloat = 270
     private static let snapEngagementDistance: CGFloat = 12
     private static let snapReleaseDistance: CGFloat = 28
-    private static let defaultVerticalCenterRatio: CGFloat = 0.72
 
     private let reminderStore: ReminderStore
+    private let settingsStore: AppSettingsStore
     private var window: NSWindow?
-    private var originalFrame: NSRect?
-    private var snapGuideWindow: NSWindow?
+    private var draft: QuickAddDraft?
     private var dragSession: QuickAddWindowDragSession?
+    private var snapFeedbackGate = QuickAddSnapFeedbackGate()
+    private var snapGuideWindow: NSWindow?
+    private var startingWindowOrigin: NSPoint?
     private var lastWindowOrigin: NSPoint?
+    private var escapeKeyMonitor: Any?
 
-    init(reminderStore: ReminderStore) {
+    init(reminderStore: ReminderStore, settingsStore: AppSettingsStore) {
         self.reminderStore = reminderStore
+        self.settingsStore = settingsStore
         super.init()
     }
 
@@ -32,9 +37,18 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             return
         }
 
-        position(window, size: Self.windowSize)
+        position(window, size: window.frame.size)
+        window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        window.makeKey()
+        DispatchQueue.main.async { [weak window] in
+            guard window?.isVisible == true else {
+                return
+            }
+
+            NSApp.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
+        }
     }
 
     private func close() {
@@ -52,6 +66,12 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        #if DEBUG
+        guard !ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
+            return
+        }
+        #endif
+
         guard window?.isVisible == true else {
             return
         }
@@ -61,35 +81,34 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
 
     private func resetWindow() {
         closeSnapGuide()
+
+        if let escapeKeyMonitor {
+            NSEvent.removeMonitor(escapeKeyMonitor)
+            self.escapeKeyMonitor = nil
+        }
+
         window?.delegate = nil
         window?.contentViewController = nil
         window = nil
-        originalFrame = nil
+        draft = nil
         dragSession = nil
+        snapFeedbackGate.reset()
+        startingWindowOrigin = nil
     }
 
     private func makeWindow() -> NSWindow {
+        let draft = QuickAddDraft(settingsStore: settingsStore)
+        self.draft = draft
         let contentView = QuickAddWindowView(
+            draft: draft,
             onCancel: { [weak self] in
                 self?.close()
             },
-            onSubmit: { [weak self] input, notes, shouldKeepOpen, suppressedInferredTokens in
-                guard let self else {
-                    return
-                }
-
-                Task {
-                    await self.reminderStore.addReminder(
-                        from: input,
-                        notes: notes,
-                        suppressedInferredTokens: suppressedInferredTokens
-                    )
-                    if shouldKeepOpen {
-                        self.window?.makeKeyAndOrderFront(nil)
-                    } else {
-                        self.close()
-                    }
-                }
+            onSubmit: { [weak self] request in
+                self?.submit(request)
+            },
+            onPreferredHeightChange: { [weak self] height in
+                self?.resizeWindow(toPreferredHeight: height)
             }
         )
         .environmentObject(reminderStore)
@@ -104,42 +123,117 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         panel.contentViewController = makeContentViewController(rootView: contentView)
         panel.title = "Quick Add"
         panel.delegate = self
+        panel.onRequestClose = { [weak self] in
+            self?.close()
+        }
         panel.setContentSize(Self.windowSize)
         panel.contentMinSize = Self.windowSize
-        panel.contentMaxSize = Self.windowSize
+        panel.contentMaxSize = NSSize(
+            width: Self.windowSize.width,
+            height: Self.maximumWindowHeight
+        )
         panel.isMovableByWindowBackground = false
+        panel.becomesKeyOnlyIfNeeded = false
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = false
+        panel.hasShadow = true
         panel.contentView?.prepareForTallyTransparentWindow()
+        installEscapeKeyMonitor(for: panel)
 
         return panel
     }
 
+    private func installEscapeKeyMonitor(for panel: QuickAddPanel) {
+        if let escapeKeyMonitor {
+            NSEvent.removeMonitor(escapeKeyMonitor)
+        }
+
+        escapeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+            [weak self, weak panel] event in
+            guard let self,
+                  let panel,
+                  panel.isVisible,
+                  QuickAddPanel.isPlainEscape(event)
+            else {
+                return event
+            }
+
+            // A SwiftUI popover owns a separate panel and should dismiss one level
+            // through its own onExitCommand handler.
+            if let eventWindow = event.window,
+               eventWindow !== panel,
+               eventWindow is NSPanel {
+                return event
+            }
+
+            close()
+            return nil
+        }
+    }
+
+    private func submit(_ request: ReminderCreationRequest) {
+        guard let draft else {
+            return
+        }
+
+        let keepsOpenAfterAdd = draft.keepsOpenAfterAdd
+        let destinationListTitle = reminderStore.destinationListTitle(for: request)
+
+        Task { @MainActor [weak self, weak draft] in
+            guard let self else {
+                return
+            }
+
+            let didSave = await reminderStore.addReminder(request)
+            guard let draft, draft === self.draft else {
+                return
+            }
+
+            if didSave {
+                draft.didSave(to: destinationListTitle)
+                if keepsOpenAfterAdd {
+                    window?.makeKeyAndOrderFront(nil)
+                } else {
+                    close()
+                }
+            } else {
+                draft.reportSaveFailure(
+                    reminderStore.errorMessage ?? "The reminder could not be saved."
+                )
+                window?.makeKeyAndOrderFront(nil)
+            }
+        }
+    }
+
     private func position(_ window: NSWindow, size: NSSize) {
-        let restoredFrame = lastWindowOrigin.map { NSRect(origin: $0, size: size) }
-        let screen = restoredFrame.flatMap(screenBestMatching) ?? screenContainingMouse() ?? NSScreen.main
+        let rememberedFrame = lastWindowOrigin.map { NSRect(origin: $0, size: size) }
+        let screen = rememberedFrame.flatMap(screenBestMatching)
+            ?? screenContainingMouse()
+            ?? NSScreen.main
 
         guard let visibleFrame = screen?.visibleFrame else {
             window.setFrame(NSRect(origin: .zero, size: size), display: false)
             window.center()
-            originalFrame = window.frame
+            startingWindowOrigin = window.frame.origin
 
             if let lastWindowOrigin {
-                window.setFrame(NSRect(origin: lastWindowOrigin, size: size), display: false)
+                window.setFrame(
+                    NSRect(origin: lastWindowOrigin, size: size),
+                    display: false
+                )
             }
             return
         }
 
-        let defaultOrigin = NSPoint(
-            x: visibleFrame.midX - size.width / 2,
-            y: defaultOriginY(for: size, in: visibleFrame)
+        let defaultOrigin = QuickAddWindowPlacement.defaultOrigin(
+            windowSize: size,
+            visibleFrame: visibleFrame
         )
-        originalFrame = NSRect(origin: defaultOrigin, size: size)
+        startingWindowOrigin = defaultOrigin
 
         let origin = lastWindowOrigin.flatMap { rememberedOrigin in
             QuickAddWindowPlacement.restoredOrigin(
@@ -148,14 +242,8 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
                 visibleFrame: visibleFrame
             )
         } ?? defaultOrigin
-        window.setFrame(NSRect(origin: origin, size: size), display: true)
-    }
 
-    private func defaultOriginY(for size: NSSize, in visibleFrame: NSRect) -> CGFloat {
-        let targetCenterY = visibleFrame.minY + visibleFrame.height * Self.defaultVerticalCenterRatio
-        let unclampedOriginY = targetCenterY - size.height / 2
-        let maxOriginY = max(visibleFrame.minY, visibleFrame.maxY - size.height)
-        return min(max(unclampedOriginY, visibleFrame.minY), maxOriginY)
+        window.setFrame(NSRect(origin: origin, size: size), display: true)
     }
 
     private func makeContentViewController<Content: View>(rootView: Content) -> NSViewController {
@@ -185,6 +273,7 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             panelSize: Self.windowSize,
             cornerRadius: TallyChrome.panelCornerRadius
         )
+        dragHandle.autoresizingMask = [.width, .minYMargin]
         containerView.addSubview(dragHandle)
 
         return containerController
@@ -192,42 +281,88 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
 
     private func beginWindowDrag(at mouseLocation: NSPoint) {
         guard let window,
-              let originalFrame else {
+              let startingWindowOrigin else {
             return
         }
 
         dragSession = QuickAddWindowDragSession(
             initialMouseLocation: mouseLocation,
             initialWindowOrigin: window.frame.origin,
-            targetOrigin: originalFrame.origin,
+            targetOrigin: startingWindowOrigin,
             engagementDistance: Self.snapEngagementDistance,
             releaseDistance: Self.snapReleaseDistance
         )
+        snapFeedbackGate.reset()
         updateSnapGuide(
-            snappedAxes: QuickAddSnapAlignment.axes(
+            alignedAxes: QuickAddSnapAlignment.axes(
                 origin: window.frame.origin,
-                targetOrigin: originalFrame.origin
+                targetOrigin: startingWindowOrigin
             ),
-            originalFrame: originalFrame,
+            targetFrame: NSRect(
+                origin: startingWindowOrigin,
+                size: window.frame.size
+            ),
             relativeTo: window
         )
     }
 
     private func updateWindowDrag(to mouseLocation: NSPoint) {
         guard let window,
-              let originalFrame,
               var dragSession else {
             return
         }
 
-        let resolution = dragSession.resolve(mouseLocation: mouseLocation)
+        let homeResolution = dragSession.resolve(mouseLocation: mouseLocation)
         self.dragSession = dragSession
 
-        if resolution.origin != window.frame.origin {
-            window.setFrameOrigin(resolution.origin)
+        let windowSize = window.frame.size
+        let proposedFrame = NSRect(origin: homeResolution.origin, size: windowSize)
+        let screen = screenBestMatching(proposedFrame) ?? window.screen ?? screenContainingMouse()
+
+        let resolvedOrigin: NSPoint
+        if let visibleFrame = screen?.visibleFrame {
+            resolvedOrigin = QuickAddWindowSnapResolver.resolve(
+                proposedOrigin: homeResolution.origin,
+                windowSize: windowSize,
+                visibleFrame: visibleFrame,
+                eligibleAxes: dragSession.eligibleSnapAxes
+            ).origin
+        } else {
+            resolvedOrigin = homeResolution.origin
         }
 
-        updateSnapGuide(snappedAxes: resolution.snappedAxes, originalFrame: originalFrame, relativeTo: window)
+        if resolvedOrigin != window.frame.origin {
+            window.setFrameOrigin(resolvedOrigin)
+        }
+
+        guard let startingWindowOrigin else {
+            return
+        }
+
+        let alignedAxes = QuickAddSnapAlignment.axes(
+            origin: resolvedOrigin,
+            targetOrigin: startingWindowOrigin
+        )
+        updateSnapGuide(
+            alignedAxes: alignedAxes,
+            targetFrame: NSRect(
+                origin: startingWindowOrigin,
+                size: windowSize
+            ),
+            relativeTo: window
+        )
+
+        let didMagneticallySnapToTarget =
+            alignedAxes == .all &&
+            !homeResolution.snappedAxes.isEmpty
+        if snapFeedbackGate.shouldPerformFeedback(
+            isSnappedToTarget: didMagneticallySnapToTarget
+        ) {
+            NSHapticFeedbackManager.defaultPerformer.perform(
+                .generic,
+                performanceTime: .now
+            )
+        }
     }
 
     private func finishWindowDrag() {
@@ -237,31 +372,31 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
 
         lastWindowOrigin = window?.frame.origin
         dragSession = nil
+        snapFeedbackGate.reset()
         hideSnapGuide()
     }
 
     private func updateSnapGuide(
-        snappedAxes: QuickAddSnapAxes,
-        originalFrame: NSRect,
+        alignedAxes: QuickAddSnapAxes,
+        targetFrame: NSRect,
         relativeTo window: NSWindow
     ) {
-        let guideFrame = snapGuideFrame(for: originalFrame)
-        let guideWindow = snapGuideWindow ?? makeSnapGuideWindow(frame: guideFrame)
+        let guideWindow = snapGuideWindow ?? makeSnapGuideWindow(frame: targetFrame)
         snapGuideWindow = guideWindow
 
-        if guideWindow.frame != guideFrame {
-            guideWindow.setFrame(guideFrame, display: true)
+        if guideWindow.frame != targetFrame {
+            guideWindow.setFrame(targetFrame, display: true)
         }
 
         if let guideView = guideWindow.contentView as? QuickAddSnapGuideView {
-            guideView.snappedAxes = snappedAxes
+            guideView.alignedAxes = alignedAxes
         }
 
-        guideWindow.order(.above, relativeTo: window.windowNumber)
-    }
-
-    private func snapGuideFrame(for originalFrame: NSRect) -> NSRect {
-        originalFrame
+        if alignedAxes == .all {
+            guideWindow.orderOut(nil)
+        } else if !guideWindow.isVisible {
+            guideWindow.order(.below, relativeTo: window.windowNumber)
+        }
     }
 
     private func makeSnapGuideWindow(frame: NSRect) -> NSWindow {
@@ -279,7 +414,12 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         guideWindow.ignoresMouseEvents = true
         guideWindow.hidesOnDeactivate = false
         guideWindow.level = .floating
-        guideWindow.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+        guideWindow.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .transient,
+            .ignoresCycle
+        ]
         guideWindow.backgroundColor = .clear
         guideWindow.isOpaque = false
         guideWindow.hasShadow = false
@@ -296,6 +436,39 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         snapGuideWindow = nil
     }
 
+    private func resizeWindow(toPreferredHeight preferredHeight: CGFloat) {
+        guard let window else {
+            return
+        }
+
+        let height = min(
+            max(preferredHeight, Self.windowSize.height),
+            Self.maximumWindowHeight
+        )
+        guard abs(window.frame.height - height) > 0.5 else {
+            return
+        }
+
+        let oldFrame = window.frame
+        let size = NSSize(width: Self.windowSize.width, height: height)
+        var origin = NSPoint(x: oldFrame.minX, y: oldFrame.maxY - height)
+        if var startingWindowOrigin {
+            startingWindowOrigin.y -= height - oldFrame.height
+            self.startingWindowOrigin = startingWindowOrigin
+        }
+
+        if let visibleFrame = window.screen?.visibleFrame {
+            origin = QuickAddWindowPlacement.clampedOrigin(
+                origin,
+                windowSize: size,
+                visibleFrame: visibleFrame,
+                edgeInset: QuickAddWindowPlacement.edgeInset
+            )
+        }
+
+        window.setFrame(NSRect(origin: origin, size: size), display: true)
+    }
+
     private func screenContainingMouse() -> NSScreen? {
         let mouseLocation = NSEvent.mouseLocation
         return NSScreen.screens.first { screen in
@@ -304,11 +477,16 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
     }
 
     private func screenBestMatching(_ frame: NSRect) -> NSScreen? {
-        NSScreen.screens.max { lhs, rhs in
+        let screen = NSScreen.screens.max { lhs, rhs in
             lhs.visibleFrame.intersection(frame).area < rhs.visibleFrame.intersection(frame).area
-        }.flatMap { screen in
-            screen.visibleFrame.intersects(frame) ? screen : nil
         }
+
+        guard let screen,
+              screen.visibleFrame.intersection(frame).area > 0 else {
+            return nil
+        }
+
+        return screen
     }
 }
 
@@ -323,12 +501,44 @@ private extension NSRect {
 }
 
 private final class QuickAddPanel: NSPanel {
+    private static let escapeKeyCode: UInt16 = 53
+
+    var onRequestClose: (() -> Void)?
+
     override var canBecomeKey: Bool {
         true
     }
 
     override var canBecomeMain: Bool {
-        true
+        false
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if Self.isPlainEscape(event) {
+            requestClose()
+            return
+        }
+
+        super.sendEvent(event)
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        requestClose()
+    }
+
+    private func requestClose() {
+        onRequestClose?() ?? close()
+    }
+
+    fileprivate static func isPlainEscape(_ event: NSEvent) -> Bool {
+        guard event.type == .keyDown,
+              event.keyCode == escapeKeyCode
+        else {
+            return false
+        }
+
+        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        return flags.isEmpty
     }
 }
 
@@ -402,8 +612,12 @@ private final class QuickAddSnapGuidePanel: NSPanel {
 }
 
 private final class QuickAddSnapGuideView: NSView {
-    var snappedAxes: QuickAddSnapAxes = [] {
+    var alignedAxes: QuickAddSnapAxes = [] {
         didSet {
+            guard alignedAxes != oldValue else {
+                return
+            }
+
             needsDisplay = true
         }
     }
@@ -422,55 +636,57 @@ private final class QuickAddSnapGuideView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let surfaceRect = bounds
-        let targetPath = NSBezierPath(
-            roundedRect: surfaceRect,
+        drawTargetOutline()
+        drawRulers()
+    }
+
+    private func drawTargetOutline() {
+        let path = NSBezierPath(
+            roundedRect: bounds.insetBy(dx: 0.75, dy: 0.75),
             xRadius: TallyChrome.panelCornerRadius,
             yRadius: TallyChrome.panelCornerRadius
         )
-        let dashPattern: [CGFloat] = [6, 6]
-        targetPath.setLineDash(dashPattern, count: dashPattern.count, phase: 0)
-        targetPath.lineWidth = 1.5
-        NSColor.secondaryLabelColor.withAlphaComponent(0.42).setStroke()
-        targetPath.stroke()
+        let dashPattern: [CGFloat] = [6, 5]
+        path.setLineDash(dashPattern, count: dashPattern.count, phase: 0)
+        path.lineWidth = alignedAxes == .all ? 2 : 1.5
 
-        drawSnappedAxes(around: surfaceRect, dashPattern: dashPattern)
+        let color = alignedAxes == .all
+            ? NSColor.controlAccentColor.withAlphaComponent(0.88)
+            : NSColor.secondaryLabelColor.withAlphaComponent(0.44)
+        color.setStroke()
+        path.stroke()
     }
 
-    private func drawSnappedAxes(around surfaceRect: NSRect, dashPattern: [CGFloat]) {
-        guard !snappedAxes.isEmpty else {
-            return
-        }
+    private func drawRulers() {
+        drawRuler(
+            from: NSPoint(x: bounds.midX, y: bounds.minY),
+            to: NSPoint(x: bounds.midX, y: bounds.maxY),
+            isAligned: alignedAxes.contains(.horizontal)
+        )
+        drawRuler(
+            from: NSPoint(x: bounds.minX, y: bounds.midY),
+            to: NSPoint(x: bounds.maxX, y: bounds.midY),
+            isAligned: alignedAxes.contains(.vertical)
+        )
+    }
 
-        let path: NSBezierPath
-        if snappedAxes == .all {
-            path = NSBezierPath(
-                roundedRect: surfaceRect,
-                xRadius: TallyChrome.panelCornerRadius,
-                yRadius: TallyChrome.panelCornerRadius
-            )
-        } else {
-            path = NSBezierPath()
-            let cornerInset = TallyChrome.panelCornerRadius
+    private func drawRuler(
+        from start: NSPoint,
+        to end: NSPoint,
+        isAligned: Bool
+    ) {
+        let path = NSBezierPath()
+        path.move(to: start)
+        path.line(to: end)
 
-            if snappedAxes.contains(.horizontal) {
-                path.move(to: NSPoint(x: surfaceRect.minX, y: surfaceRect.minY + cornerInset))
-                path.line(to: NSPoint(x: surfaceRect.minX, y: surfaceRect.maxY - cornerInset))
-                path.move(to: NSPoint(x: surfaceRect.maxX, y: surfaceRect.minY + cornerInset))
-                path.line(to: NSPoint(x: surfaceRect.maxX, y: surfaceRect.maxY - cornerInset))
-            }
-
-            if snappedAxes.contains(.vertical) {
-                path.move(to: NSPoint(x: surfaceRect.minX + cornerInset, y: surfaceRect.minY))
-                path.line(to: NSPoint(x: surfaceRect.maxX - cornerInset, y: surfaceRect.minY))
-                path.move(to: NSPoint(x: surfaceRect.minX + cornerInset, y: surfaceRect.maxY))
-                path.line(to: NSPoint(x: surfaceRect.maxX - cornerInset, y: surfaceRect.maxY))
-            }
-        }
-
+        let dashPattern: [CGFloat] = isAligned ? [7, 4] : [3, 5]
         path.setLineDash(dashPattern, count: dashPattern.count, phase: 0)
-        path.lineWidth = 2
-        NSColor.controlAccentColor.withAlphaComponent(0.9).setStroke()
+        path.lineWidth = isAligned ? 1.5 : 1
+
+        let color = isAligned
+            ? NSColor.controlAccentColor.withAlphaComponent(0.72)
+            : NSColor.secondaryLabelColor.withAlphaComponent(0.25)
+        color.setStroke()
         path.stroke()
     }
 }

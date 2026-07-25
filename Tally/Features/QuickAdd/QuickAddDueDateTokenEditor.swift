@@ -43,7 +43,7 @@ enum QuickAddTokenEditor {
 
         guard let existingToken,
               let range = Range(existingToken.range, in: input) else {
-            return appendingToken(replacement, to: input)
+            return appendingToken(replacement, to: input, fields: fields)
         }
 
         var updated = input
@@ -62,6 +62,22 @@ enum QuickAddTokenEditor {
             in: input,
             matching: { $0.kind == .list },
             with: "#\(QuickAddListTokenCodec.encode(listTitle))",
+            calendar: calendar,
+            now: now,
+            suppressedInferredTokens: suppressedInferredTokens
+        )
+    }
+
+    static func clearingList(
+        in input: String,
+        calendar: Calendar = .current,
+        now: Date = Date(),
+        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+    ) -> String {
+        replacingTokens(
+            in: input,
+            matching: { $0.kind == .list },
+            with: nil,
             calendar: calendar,
             now: now,
             suppressedInferredTokens: suppressedInferredTokens
@@ -103,10 +119,10 @@ enum QuickAddTokenEditor {
             return pendingEdit
         }
 
-        let updated = appendingToken("@", to: input)
+        let updated = appendingToken("@", to: input, fields: fields)
         return QuickAddTextEdit(
             text: updated,
-            selectedRange: NSRange(location: (updated as NSString).length, length: 0)
+            selectedRange: selectionAfterFirstPendingTag(in: updated)
         )
     }
 
@@ -136,10 +152,10 @@ enum QuickAddTokenEditor {
             )
         }
 
-        let updated = appendingToken("@", to: input)
+        let updated = appendingToken("@", to: input, fields: fields)
         return QuickAddTextEdit(
             text: updated,
-            selectedRange: NSRange(location: (updated as NSString).length, length: 0)
+            selectedRange: selectionAfterFirstPendingTag(in: updated)
         )
     }
 
@@ -237,7 +253,7 @@ enum QuickAddTokenEditor {
                 return normalized(input)
             }
 
-            return appendingToken(replacement, to: input)
+            return appendingToken(replacement, to: input, fields: fields)
         }
 
         var updated = removingTokens(matchingTokens, from: input)
@@ -265,10 +281,21 @@ enum QuickAddTokenEditor {
         return updated
     }
 
-    private static func appendingToken(_ token: String, to input: String) -> String {
+    private static func appendingToken(
+        _ token: String,
+        to input: String,
+        fields: QuickAddFields
+    ) -> String {
         let cleanedInput = normalized(input)
         guard !cleanedInput.isEmpty else {
             return token
+        }
+
+        if let noteToken = fields.usedTokens.first(where: { $0.kind == .note }),
+           let insertionIndex = stringIndex(atUTF16Offset: noteToken.range.location, in: input) {
+            var updated = input
+            updated.insert(contentsOf: "\(token) ", at: insertionIndex)
+            return normalized(updated)
         }
 
         return "\(cleanedInput) \(token)"

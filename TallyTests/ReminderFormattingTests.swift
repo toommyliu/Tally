@@ -2,6 +2,13 @@ import XCTest
 @testable import Tally
 
 final class ReminderFormattingTests: XCTestCase {
+    func testPriorityTitlesMatchAppleReminders() {
+        XCTAssertEqual(0.reminderPriorityTitle, "None")
+        XCTAssertEqual(9.reminderPriorityTitle, "Low")
+        XCTAssertEqual(5.reminderPriorityTitle, "Medium")
+        XCTAssertEqual(1.reminderPriorityTitle, "High")
+    }
+
     func testMenuTitleIncludesDueDateWhenItFits() {
         let reminder = ReminderItem(
             id: "1",

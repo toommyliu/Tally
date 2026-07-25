@@ -34,16 +34,16 @@ extension DateComponents {
 }
 
 extension Int {
-    var quickAddTitle: String {
+    var reminderPriorityTitle: String {
         switch self {
         case 1:
-            return "P1"
+            return "High"
         case 5:
-            return "P2"
+            return "Medium"
         case 9:
-            return "P3"
+            return "Low"
         default:
-            return "P4"
+            return "None"
         }
     }
 

@@ -262,6 +262,18 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertEqual(multiple, "Call Sam #Errands P1")
     }
 
+    func testMetadataEditorsInsertTokensBeforeInlineNotes() {
+        let input = "Call Sam // Ask about renewal"
+        let withList = QuickAddTokenEditor.applyingList("Work", to: input, calendar: calendar)
+        let withPriority = QuickAddTokenEditor.applyingPriority(1, to: input, calendar: calendar)
+        let withTag = QuickAddTokenEditor.addingTagEntry(in: input, calendar: calendar)
+
+        XCTAssertEqual(withList, "Call Sam #Work // Ask about renewal")
+        XCTAssertEqual(withPriority, "Call Sam P1 // Ask about renewal")
+        XCTAssertEqual(withTag.text, "Call Sam @ // Ask about renewal")
+        XCTAssertEqual(withTag.selectedRange, NSRange(location: 10, length: 0))
+    }
+
     func testPriorityTokenEditorReplacesAndClearsExistingPriorityTokens() {
         let inserted = QuickAddTokenEditor.applyingPriority(1, to: "Call Sam #Work", calendar: calendar)
         let replaced = QuickAddTokenEditor.applyingPriority(5, to: "Call Sam P1 #Work", calendar: calendar)

@@ -6,20 +6,15 @@ struct TallyApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(
-                onQuickAddShortcutChange: { shortcut in
-                    appDelegate.appController.applyQuickAddShortcut(shortcut)
-                },
-                onTrayShortcutChange: { shortcut in
-                    appDelegate.appController.applyTrayShortcut(shortcut)
-                },
-                onPermissionRequestComplete: {
-                    appDelegate.appController.refocusSettingsAfterPermissionRequest()
+            EmptyView()
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    appDelegate.appController.showSettings()
                 }
-            )
-                .environmentObject(appDelegate.reminderStore)
-                .environmentObject(appDelegate.settingsStore)
-                .environmentObject(appDelegate.launchAtLoginController)
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
     }
 }
@@ -39,7 +34,20 @@ final class TallyAppDelegate: NSObject, NSApplicationDelegate {
         )
 
         Task {
+            #if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("--show-quick-add") {
+                appController.showQuickAdd()
+            } else if arguments.contains("--show-settings") {
+                appController.showSettings()
+            }
+            #endif
+
             await reminderStore.bootstrap()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        appController.prepareForTermination()
     }
 }

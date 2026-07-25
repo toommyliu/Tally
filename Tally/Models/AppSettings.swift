@@ -2,18 +2,18 @@ import AppKit
 import Carbon
 import Foundation
 
-enum MenuBarBadgeStyle: String, CaseIterable, Identifiable {
-    case trailingCount
-    case iconBadge
+enum QuickAddBehavior: String, CaseIterable, Identifiable {
+    case closeAfterAdding
+    case keepOpen
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .trailingCount:
-            return "Beside icon"
-        case .iconBadge:
-            return "On icon"
+        case .closeAfterAdding:
+            return "Close after adding"
+        case .keepOpen:
+            return "Keep open"
         }
     }
 }
@@ -101,25 +101,26 @@ struct GlobalShortcut: Codable, Equatable {
             return "Invalid"
         }
 
-        var title = ""
+        var keys: [String] = []
 
         if modifiers.contains(.control) {
-            title += "⌃"
+            keys.append("⌃")
         }
 
         if modifiers.contains(.option) {
-            title += "⌥"
+            keys.append("⌥")
         }
 
         if modifiers.contains(.shift) {
-            title += "⇧"
+            keys.append("⇧")
         }
 
         if modifiers.contains(.command) {
-            title += "⌘"
+            keys.append("⌘")
         }
 
-        return title + displayKeyTitle
+        keys.append(displayKeyTitle)
+        return keys.joined(separator: " ")
     }
 
     var isValid: Bool {

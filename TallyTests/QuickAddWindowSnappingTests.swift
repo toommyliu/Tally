@@ -3,80 +3,140 @@ import XCTest
 @testable import Tally
 
 final class QuickAddWindowSnappingTests: XCTestCase {
-    func testSnapAlignmentReflectsActualAxesAtTarget() {
-        let targetOrigin = NSPoint(x: 100, y: 200)
+    private let windowSize = NSSize(width: 590, height: 190)
+    private let visibleFrame = NSRect(x: 0, y: 0, width: 1512, height: 949)
 
-        XCTAssertEqual(
-            QuickAddSnapAlignment.axes(origin: targetOrigin, targetOrigin: targetOrigin),
-            .all
+    func testDefaultOriginIsCenteredNearTheTopOfTheVisibleScreen() {
+        let origin = QuickAddWindowPlacement.defaultOrigin(
+            windowSize: windowSize,
+            visibleFrame: visibleFrame
         )
-        XCTAssertEqual(
-            QuickAddSnapAlignment.axes(origin: NSPoint(x: 100, y: 250), targetOrigin: targetOrigin),
-            .horizontal
-        )
-        XCTAssertEqual(
-            QuickAddSnapAlignment.axes(origin: NSPoint(x: 150, y: 200), targetOrigin: targetOrigin),
-            .vertical
-        )
-        XCTAssertEqual(
-            QuickAddSnapAlignment.axes(origin: NSPoint(x: 150, y: 250), targetOrigin: targetOrigin),
-            []
-        )
+
+        XCTAssertEqual(origin.x, 461, accuracy: 0.001)
+        XCTAssertEqual(origin.y, 664.1, accuracy: 0.001)
+        XCTAssertEqual(origin.x + windowSize.width / 2, visibleFrame.midX, accuracy: 0.001)
     }
 
-    func testRestoresRememberedWindowOriginWhenItRemainsVisible() {
+    func testRestoresRememberedOriginWhenItRemainsVisible() {
         let rememberedOrigin = NSPoint(x: 300, y: 500)
 
         let restoredOrigin = QuickAddWindowPlacement.restoredOrigin(
             rememberedOrigin,
-            windowSize: NSSize(width: 596, height: 244),
-            visibleFrame: NSRect(x: 0, y: 0, width: 1512, height: 949)
+            windowSize: windowSize,
+            visibleFrame: visibleFrame
         )
 
         XCTAssertEqual(restoredOrigin, rememberedOrigin)
     }
 
-    func testRejectsRememberedWindowOriginThatIsNoLongerUsablyVisible() {
+    func testRestoredOriginIsClampedFullyInsideTheVisibleFrame() {
         let restoredOrigin = QuickAddWindowPlacement.restoredOrigin(
-            NSPoint(x: 1480, y: 930),
-            windowSize: NSSize(width: 596, height: 244),
-            visibleFrame: NSRect(x: 0, y: 0, width: 1512, height: 949)
+            NSPoint(x: -5, y: 900),
+            windowSize: windowSize,
+            visibleFrame: visibleFrame
+        )
+
+        XCTAssertEqual(restoredOrigin, NSPoint(x: 10, y: 749))
+    }
+
+    func testRejectsRememberedOriginFromADisconnectedScreen() {
+        let restoredOrigin = QuickAddWindowPlacement.restoredOrigin(
+            NSPoint(x: 2000, y: 1200),
+            windowSize: windowSize,
+            visibleFrame: visibleFrame
         )
 
         XCTAssertNil(restoredOrigin)
     }
 
-    func testDragHandleOccupiesTopEdgeInsideVisibleSurface() {
+    func testDragHandleOnlyOccupiesTheTopPadding() {
         let frame = QuickAddDragHandleLayout.frame(
-            panelSize: NSSize(width: 540, height: 188),
-            cornerRadius: 20
+            panelSize: windowSize,
+            cornerRadius: 14
         )
 
-        XCTAssertEqual(frame, NSRect(x: 20, y: 170, width: 500, height: 18))
-        XCTAssertEqual(frame.maxY, 188)
-        XCTAssertGreaterThan(frame.minY, 0)
+        XCTAssertEqual(frame, NSRect(x: 18, y: 176, width: 554, height: 14))
     }
 
-    func testDragFollowsMouseExactlyBeforeSnapIsArmed() {
+    func testAlignmentReportsAxesAtTheStartingPosition() {
+        let targetOrigin = NSPoint(x: 100, y: 200)
+
+        XCTAssertEqual(
+            QuickAddSnapAlignment.axes(
+                origin: targetOrigin,
+                targetOrigin: targetOrigin
+            ),
+            .all
+        )
+        XCTAssertEqual(
+            QuickAddSnapAlignment.axes(
+                origin: NSPoint(x: 100, y: 250),
+                targetOrigin: targetOrigin
+            ),
+            .horizontal
+        )
+        XCTAssertEqual(
+            QuickAddSnapAlignment.axes(
+                origin: NSPoint(x: 150, y: 200),
+                targetOrigin: targetOrigin
+            ),
+            .vertical
+        )
+    }
+
+    func testFeedbackFiresOncePerSnapTransition() {
+        var gate = QuickAddSnapFeedbackGate()
+
+        XCTAssertFalse(gate.shouldPerformFeedback(isSnappedToTarget: false))
+        XCTAssertTrue(gate.shouldPerformFeedback(isSnappedToTarget: true))
+        XCTAssertFalse(gate.shouldPerformFeedback(isSnappedToTarget: true))
+        XCTAssertFalse(gate.shouldPerformFeedback(isSnappedToTarget: false))
+        XCTAssertTrue(gate.shouldPerformFeedback(isSnappedToTarget: true))
+
+        gate.reset()
+
+        XCTAssertTrue(gate.shouldPerformFeedback(isSnappedToTarget: true))
+    }
+
+    func testDragSessionAlwaysUsesTheMouseDownOrigin() {
         var session = makeDragSession()
 
-        let resolution = session.resolve(mouseLocation: NSPoint(x: 412, y: 391))
+        XCTAssertEqual(
+            session.proposedOrigin(mouseLocation: NSPoint(x: 412, y: 391)),
+            NSPoint(x: 112, y: 191)
+        )
+        XCTAssertEqual(
+            session.proposedOrigin(mouseLocation: NSPoint(x: 440, y: 430)),
+            NSPoint(x: 140, y: 230)
+        )
 
-        XCTAssertEqual(resolution.origin, NSPoint(x: 112, y: 191))
-        XCTAssertEqual(resolution.snappedAxes, [])
+        _ = session.resolve(mouseLocation: NSPoint(x: 440, y: 430))
+        _ = session.resolve(mouseLocation: NSPoint(x: 409, y: 409))
+
+        XCTAssertEqual(
+            session.resolve(mouseLocation: NSPoint(x: 440, y: 430)).origin,
+            NSPoint(x: 140, y: 230)
+        )
     }
 
-    func testDragCanLeaveTargetWithoutInitialStickiness() {
+    func testDragLeavesTheStartingPositionWithoutInitialStickiness() {
         var session = makeDragSession()
 
         let firstMovement = session.resolve(mouseLocation: NSPoint(x: 405, y: 400))
         let secondMovement = session.resolve(mouseLocation: NSPoint(x: 415, y: 400))
 
-        XCTAssertEqual(firstMovement.origin.x, 105)
-        XCTAssertEqual(secondMovement.origin.x, 115)
+        XCTAssertEqual(firstMovement.origin, NSPoint(x: 105, y: 200))
+        XCTAssertEqual(secondMovement.origin, NSPoint(x: 115, y: 200))
+        XCTAssertEqual(firstMovement.snappedAxes, [])
+        XCTAssertEqual(secondMovement.snappedAxes, [])
+        XCTAssertEqual(session.eligibleSnapAxes, [])
+
+        _ = session.resolve(mouseLocation: NSPoint(x: 429, y: 400))
+
+        XCTAssertEqual(session.eligibleSnapAxes, .horizontal)
     }
 
-    func testDragSnapsLiveAfterLeavingAndReturningToTarget() {
+    func testDragSnapsLiveWhenReturningToTheStartingPosition() {
         var session = makeDragSession()
         _ = session.resolve(mouseLocation: NSPoint(x: 440, y: 440))
 
@@ -86,82 +146,109 @@ final class QuickAddWindowSnappingTests: XCTestCase {
         XCTAssertEqual(resolution.snappedAxes, .all)
     }
 
-    func testDragKeepsLockedAxisUntilCursorCrossesReleaseDistance() {
+    func testHomeSnapHysteresisPreventsChatterNearTheCaptureBoundary() {
         var session = makeDragSession()
         _ = session.resolve(mouseLocation: NSPoint(x: 440, y: 400))
         _ = session.resolve(mouseLocation: NSPoint(x: 408, y: 400))
 
         let retained = session.resolve(mouseLocation: NSPoint(x: 426, y: 400))
         let released = session.resolve(mouseLocation: NSPoint(x: 429, y: 400))
+        let remainsFree = session.resolve(mouseLocation: NSPoint(x: 415, y: 400))
+        let recaptured = session.resolve(mouseLocation: NSPoint(x: 412, y: 400))
 
         XCTAssertEqual(retained.origin.x, 100)
+        XCTAssertTrue(retained.snappedAxes.contains(.horizontal))
         XCTAssertEqual(released.origin.x, 129)
+        XCTAssertFalse(released.snappedAxes.contains(.horizontal))
+        XCTAssertEqual(remainsFree.origin.x, 115)
+        XCTAssertFalse(remainsFree.snappedAxes.contains(.horizontal))
+        XCTAssertEqual(recaptured.origin.x, 100)
+        XCTAssertTrue(recaptured.snappedAxes.contains(.horizontal))
     }
 
-    func testDragPositionAlwaysUsesMouseDownOriginInsteadOfAccumulatingSnapCorrections() {
-        var session = makeDragSession()
-        _ = session.resolve(mouseLocation: NSPoint(x: 440, y: 400))
-        _ = session.resolve(mouseLocation: NSPoint(x: 408, y: 400))
+    func testHomeSnapTreatsEachAxisIndependently() {
+        var session = QuickAddWindowDragSession(
+            initialMouseLocation: NSPoint(x: 400, y: 400),
+            initialWindowOrigin: NSPoint(x: 180, y: 280),
+            targetOrigin: NSPoint(x: 100, y: 200),
+            engagementDistance: 12,
+            releaseDistance: 28
+        )
 
-        let released = session.resolve(mouseLocation: NSPoint(x: 440, y: 400))
+        let horizontal = session.resolve(mouseLocation: NSPoint(x: 322, y: 400))
+        let vertical = session.resolve(mouseLocation: NSPoint(x: 400, y: 322))
 
-        XCTAssertEqual(released.origin.x, 140)
-    }
-
-    func testSnapsEachAxisIndependently() {
-        var resolver = makeResolver()
-
-        let horizontal = resolver.resolve(proposedOrigin: NSPoint(x: 108, y: 250))
-        XCTAssertEqual(horizontal.origin, NSPoint(x: 100, y: 250))
+        XCTAssertEqual(horizontal.origin, NSPoint(x: 100, y: 280))
         XCTAssertEqual(horizontal.snappedAxes, .horizontal)
-
-        let vertical = resolver.resolve(proposedOrigin: NSPoint(x: 200, y: 207))
-        XCTAssertEqual(vertical.origin, NSPoint(x: 200, y: 200))
+        XCTAssertEqual(vertical.origin, NSPoint(x: 180, y: 200))
         XCTAssertEqual(vertical.snappedAxes, .vertical)
     }
 
-    func testSnapsBothAxesInsideEngagementDistance() {
-        var resolver = makeResolver()
+    func testSnapsToScreenCenterOnBothAxes() {
+        let resolution = QuickAddWindowSnapResolver.resolve(
+            proposedOrigin: NSPoint(x: 460, y: 375),
+            windowSize: windowSize,
+            visibleFrame: visibleFrame
+        )
 
-        let resolution = resolver.resolve(proposedOrigin: NSPoint(x: 92, y: 209))
-
-        XCTAssertEqual(resolution.origin, NSPoint(x: 100, y: 200))
+        XCTAssertEqual(resolution.origin.x, 461, accuracy: 0.001)
+        XCTAssertEqual(resolution.origin.y, 379.5, accuracy: 0.001)
         XCTAssertEqual(resolution.snappedAxes, .all)
     }
 
-    func testHysteresisKeepsAxisSnappedUntilReleaseDistanceIsExceeded() {
-        var resolver = makeResolver()
-        _ = resolver.resolve(proposedOrigin: NSPoint(x: 100, y: 300))
-
-        let retained = resolver.resolve(proposedOrigin: NSPoint(x: 124, y: 300))
-        XCTAssertEqual(retained.origin.x, 100)
-        XCTAssertTrue(retained.snappedAxes.contains(.horizontal))
-
-        let released = resolver.resolve(proposedOrigin: NSPoint(x: 127, y: 300))
-        XCTAssertEqual(released.origin.x, 127)
-        XCTAssertFalse(released.snappedAxes.contains(.horizontal))
-    }
-
-    func testReleasedAxisDoesNotReengageOutsideEngagementDistance() {
-        var resolver = makeResolver()
-        _ = resolver.resolve(proposedOrigin: NSPoint(x: 100, y: 300))
-        _ = resolver.resolve(proposedOrigin: NSPoint(x: 140, y: 300))
-
-        let outsideMagneticZone = resolver.resolve(proposedOrigin: NSPoint(x: 115, y: 300))
-        XCTAssertEqual(outsideMagneticZone.origin.x, 115)
-        XCTAssertFalse(outsideMagneticZone.snappedAxes.contains(.horizontal))
-
-        let reengaged = resolver.resolve(proposedOrigin: NSPoint(x: 110, y: 300))
-        XCTAssertEqual(reengaged.origin.x, 100)
-        XCTAssertTrue(reengaged.snappedAxes.contains(.horizontal))
-    }
-
-    private func makeResolver() -> QuickAddSnapResolver {
-        QuickAddSnapResolver(
-            targetOrigin: NSPoint(x: 100, y: 200),
-            engagementDistance: 10,
-            releaseDistance: 26
+    func testSnapsToInsetScreenEdges() {
+        let resolution = QuickAddWindowSnapResolver.resolve(
+            proposedOrigin: NSPoint(x: 16, y: 744),
+            windowSize: windowSize,
+            visibleFrame: visibleFrame
         )
+
+        XCTAssertEqual(resolution.origin, NSPoint(x: 10, y: 749))
+        XCTAssertEqual(resolution.snappedAxes, .all)
+    }
+
+    func testSnapsEachAxisIndependently() {
+        let resolution = QuickAddWindowSnapResolver.resolve(
+            proposedOrigin: NSPoint(x: 460, y: 220),
+            windowSize: windowSize,
+            visibleFrame: visibleFrame
+        )
+
+        XCTAssertEqual(resolution.origin, NSPoint(x: 461, y: 220))
+        XCTAssertEqual(resolution.snappedAxes, .horizontal)
+    }
+
+    func testFreeDragDoesNotSnapOutsideTheSmallMagneticZone() {
+        let resolution = QuickAddWindowSnapResolver.resolve(
+            proposedOrigin: NSPoint(x: 100, y: 100),
+            windowSize: windowSize,
+            visibleFrame: visibleFrame
+        )
+
+        XCTAssertEqual(resolution.origin, NSPoint(x: 100, y: 100))
+        XCTAssertEqual(resolution.snappedAxes, [])
+    }
+
+    func testScreenSnapWaitsUntilTheDragHasLeftItsStartingAxis() {
+        let resolution = QuickAddWindowSnapResolver.resolve(
+            proposedOrigin: NSPoint(x: 466, y: 384),
+            windowSize: windowSize,
+            visibleFrame: visibleFrame,
+            eligibleAxes: []
+        )
+
+        XCTAssertEqual(resolution.origin, NSPoint(x: 466, y: 384))
+        XCTAssertEqual(resolution.snappedAxes, [])
+    }
+
+    func testDragCannotLoseTheWindowBeyondAVisibleScreenEdge() {
+        let resolution = QuickAddWindowSnapResolver.resolve(
+            proposedOrigin: NSPoint(x: -80, y: 1200),
+            windowSize: windowSize,
+            visibleFrame: visibleFrame
+        )
+
+        XCTAssertEqual(resolution.origin, NSPoint(x: 10, y: 749))
     }
 
     private func makeDragSession() -> QuickAddWindowDragSession {
@@ -169,7 +256,7 @@ final class QuickAddWindowSnappingTests: XCTestCase {
             initialMouseLocation: NSPoint(x: 400, y: 400),
             initialWindowOrigin: NSPoint(x: 100, y: 200),
             targetOrigin: NSPoint(x: 100, y: 200),
-            engagementDistance: 10,
+            engagementDistance: 12,
             releaseDistance: 28
         )
     }

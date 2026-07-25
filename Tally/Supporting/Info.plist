@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
@@ -29,9 +31,8 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Tally needs full Reminders access to add tasks and show your open reminders from the menu bar.</string>
+	<string>Reminders access lets Tally create and update reminders, show what’s still due, and keep your changes in sync with Apple Reminders.</string>
 	<key>NSRemindersUsageDescription</key>
-	<string>Tally needs Reminders access to add tasks and show your open reminders from the menu bar.</string>
+	<string>Reminders access lets Tally create and update reminders, show what’s still due, and keep your changes in sync with Apple Reminders.</string>
 </dict>
 </plist>
-

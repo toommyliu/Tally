@@ -1,6 +1,5 @@
 import AppKit
 import Combine
-import SwiftUI
 
 @MainActor
 final class MenuBarController: NSObject {
@@ -8,7 +7,7 @@ final class MenuBarController: NSObject {
     private let statusView = MenuBarStatusView()
     private let reminderStore: ReminderStore
     private let settingsStore: AppSettingsStore
-    private let appController: AppController
+    private weak var appController: AppController?
     private var cancellables: Set<AnyCancellable> = []
     private var isTrayMenuOpen = false
     private var trayMenuKeyMonitor: Any?
@@ -16,6 +15,10 @@ final class MenuBarController: NSObject {
 
     var onTrayMenuWillOpen: (() -> Void)?
     var onTrayMenuDidClose: (() -> Void)?
+
+    var settingsAnchorView: NSView? {
+        statusItem.button
+    }
 
     init(
         reminderStore: ReminderStore,
@@ -73,13 +76,6 @@ final class MenuBarController: NSObject {
             }
             .store(in: &cancellables)
 
-        settingsStore.$badgeStyle
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.refreshStatusItem()
-            }
-            .store(in: &cancellables)
-
         settingsStore.$quickAddShortcut
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -103,7 +99,10 @@ final class MenuBarController: NSObject {
             lastStatusItemCount = count
         }
 
-        statusView.update(style: settingsStore.badgeStyle, count: count)
+        statusView.update(count: count)
+        statusItem.button?.toolTip = count == 1
+            ? "Tally — 1 open reminder"
+            : "Tally — \(count) open reminders"
     }
 
     private func configureStatusButton() {
@@ -235,7 +234,7 @@ final class MenuBarController: NSObject {
     }
 
     @objc private func showQuickAdd() {
-        appController.showQuickAddAfterMenuDismissal()
+        appController?.showQuickAddAfterMenuDismissal()
     }
 
     @objc private func openReminder(_ sender: NSMenuItem) {
@@ -283,7 +282,7 @@ final class MenuBarController: NSObject {
     }
 
     @objc private func openSettings() {
-        appController.showSettingsAfterMenuDismissal()
+        appController?.showSettingsAfterMenuDismissal()
     }
 
     @objc private func quit() {
@@ -327,14 +326,12 @@ private final class MenuBarStatusView: NSView {
     static let minimumStatusItemLength: CGFloat = 28
 
     private let imageView = NSImageView()
-    private var style: MenuBarBadgeStyle = .trailingCount
     private var count: Int = 0
 
     private static let horizontalPadding: CGFloat = 4
     private static let iconWidth: CGFloat = 20
     private static let iconHeight: CGFloat = 18
     private static let iconCountSpacing: CGFloat = 4
-    private static let badgeIconOverlap: CGFloat = 6
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -355,8 +352,7 @@ private final class MenuBarStatusView: NSView {
         return ceil(max(minimumStatusItemLength, countWidth + horizontalPadding * 2))
     }
 
-    func update(style: MenuBarBadgeStyle, count: Int) {
-        self.style = style
+    func update(count: Int) {
         self.count = count
         needsLayout = true
         needsDisplay = true
@@ -368,7 +364,7 @@ private final class MenuBarStatusView: NSView {
 
     override func layout() {
         super.layout()
-        imageView.frame = Self.iconRect(style: style, count: count, bounds: bounds)
+        imageView.frame = Self.iconRect(count: count, bounds: bounds)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -378,13 +374,8 @@ private final class MenuBarStatusView: NSView {
             return
         }
 
-        let iconRect = Self.iconRect(style: style, count: count, bounds: bounds)
-        switch style {
-        case .trailingCount:
-            Self.drawTrailingCount(count, after: iconRect)
-        case .iconBadge:
-            Self.drawBadge(count, over: iconRect)
-        }
+        let iconRect = Self.iconRect(count: count, bounds: bounds)
+        Self.drawTrailingCount(count, after: iconRect)
     }
 
     private func configureImageView() {
@@ -396,27 +387,22 @@ private final class MenuBarStatusView: NSView {
         addSubview(imageView)
     }
 
-    private static func iconRect(style: MenuBarBadgeStyle, count: Int, bounds: NSRect) -> NSRect {
+    private static func iconRect(count: Int, bounds: NSRect) -> NSRect {
         NSRect(
-            x: iconOriginX(style: style, count: count, viewWidth: bounds.width),
+            x: iconOriginX(count: count, viewWidth: bounds.width),
             y: floor((bounds.height - iconHeight) / 2),
             width: iconWidth,
             height: iconHeight
         )
     }
 
-    private static func iconOriginX(style: MenuBarBadgeStyle, count: Int, viewWidth: CGFloat) -> CGFloat {
+    private static func iconOriginX(count: Int, viewWidth: CGFloat) -> CGFloat {
         guard count > 0 else {
             return floor((viewWidth - iconWidth) / 2)
         }
 
-        switch style {
-        case .trailingCount:
-            let contentWidth = iconWidth + iconCountSpacing + countTextSize(for: count).width
-            return floor((viewWidth - contentWidth) / 2)
-        case .iconBadge:
-            return floor((viewWidth - badgeContentWidth(for: count)) / 2)
-        }
+        let contentWidth = iconWidth + iconCountSpacing + countTextSize(for: count).width
+        return floor((viewWidth - contentWidth) / 2)
     }
 
     private static func drawTrailingCount(_ count: Int, after iconRect: NSRect) {
@@ -428,46 +414,12 @@ private final class MenuBarStatusView: NSView {
         ))
     }
 
-    private static func drawBadge(_ count: Int, over iconRect: NSRect) {
-        let text = countText(for: count)
-        let badgeWidth = badgeSize(for: count).width
-        let badgeHeight = badgeSize(for: count).height
-        let badgeRect = NSRect(
-            x: iconRect.maxX - badgeIconOverlap,
-            y: iconRect.maxY - badgeHeight + 1,
-            width: badgeWidth,
-            height: badgeHeight
-        )
-        let badgePath = NSBezierPath(roundedRect: badgeRect, xRadius: badgeHeight / 2, yRadius: badgeHeight / 2)
-        NSColor.controlAccentColor.withAlphaComponent(0.96).setFill()
-        badgePath.fill()
-
-        let attributedText = NSAttributedString(string: text, attributes: badgeTextAttributes)
-        let textSize = attributedText.size()
-        attributedText.draw(at: NSPoint(
-            x: badgeRect.midX - textSize.width / 2,
-            y: badgeRect.midY - textSize.height / 2
-        ))
-    }
-
     private static func countText(for count: Int) -> String {
         count > 99 ? "99+" : "\(count)"
     }
 
     private static func countTextSize(for count: Int) -> NSSize {
         NSAttributedString(string: countText(for: count), attributes: countTextAttributes).size()
-    }
-
-    private static func badgeContentWidth(for count: Int) -> CGFloat {
-        iconWidth - badgeIconOverlap + badgeSize(for: count).width
-    }
-
-    private static func badgeSize(for count: Int) -> NSSize {
-        if count > 99 {
-            return NSSize(width: 19, height: 11)
-        }
-
-        return count > 9 ? NSSize(width: 15, height: 11) : NSSize(width: 12, height: 12)
     }
 
     private static var countTextAttributes: [NSAttributedString.Key: Any] {
@@ -477,12 +429,6 @@ private final class MenuBarStatusView: NSView {
         ]
     }
 
-    private static var badgeTextAttributes: [NSAttributedString.Key: Any] {
-        [
-            .font: NSFont.systemFont(ofSize: 7, weight: .bold),
-            .foregroundColor: NSColor.white
-        ]
-    }
 }
 
 extension MenuBarController: NSMenuDelegate {

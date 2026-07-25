@@ -8,8 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		100000000000000000000001 /* TallyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000101 /* TallyApp.swift */; };
-		100000000000000000000002 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000102 /* MenuBarView.swift */; };
-		100000000000000000000003 /* MenuBarIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000103 /* MenuBarIcon.swift */; };
 		100000000000000000000004 /* QuickAddParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000104 /* QuickAddParser.swift */; };
 		100000000000000000000005 /* ReminderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000105 /* ReminderItem.swift */; };
 		100000000000000000000006 /* ReminderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000106 /* ReminderStore.swift */; };
@@ -36,6 +34,14 @@
 		10000000000000000000001D /* ReminderAccessControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000121 /* ReminderAccessControllerTests.swift */; };
 		10000000000000000000001E /* QuickAddWindowSnapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000122 /* QuickAddWindowSnapping.swift */; };
 		10000000000000000000001F /* QuickAddWindowSnappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000123 /* QuickAddWindowSnappingTests.swift */; };
+		A10000000000000000000001 /* ReminderCreationRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000101 /* ReminderCreationRequest.swift */; };
+		A10000000000000000000002 /* QuickAddDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000102 /* QuickAddDraft.swift */; };
+		A10000000000000000000003 /* QuickAddMetadataViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000103 /* QuickAddMetadataViews.swift */; };
+		A10000000000000000000004 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000104 /* SettingsViewModel.swift */; };
+		A10000000000000000000005 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000105 /* SettingsWindowController.swift */; };
+		A10000000000000000000006 /* ReminderCreationRequestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000106 /* ReminderCreationRequestTests.swift */; };
+		A10000000000000000000007 /* QuickAddDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000107 /* QuickAddDraftTests.swift */; };
+		A10000000000000000000008 /* SettingsPanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000108 /* SettingsPanelPlacementTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,8 +56,6 @@
 
 /* Begin PBXFileReference section */
 		100000000000000000000101 /* TallyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TallyApp.swift; sourceTree = "<group>"; };
-		100000000000000000000102 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
-		100000000000000000000103 /* MenuBarIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIcon.swift; sourceTree = "<group>"; };
 		100000000000000000000104 /* QuickAddParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddParser.swift; sourceTree = "<group>"; };
 		100000000000000000000105 /* ReminderItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderItem.swift; sourceTree = "<group>"; };
 		100000000000000000000106 /* ReminderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderStore.swift; sourceTree = "<group>"; };
@@ -82,6 +86,14 @@
 		100000000000000000000121 /* ReminderAccessControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderAccessControllerTests.swift; sourceTree = "<group>"; };
 		100000000000000000000122 /* QuickAddWindowSnapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowSnapping.swift; sourceTree = "<group>"; };
 		100000000000000000000123 /* QuickAddWindowSnappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowSnappingTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000101 /* ReminderCreationRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCreationRequest.swift; sourceTree = "<group>"; };
+		A10000000000000000000102 /* QuickAddDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddDraft.swift; sourceTree = "<group>"; };
+		A10000000000000000000103 /* QuickAddMetadataViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddMetadataViews.swift; sourceTree = "<group>"; };
+		A10000000000000000000104 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		A10000000000000000000105 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		A10000000000000000000106 /* ReminderCreationRequestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCreationRequestTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000107 /* QuickAddDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddDraftTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000108 /* SettingsPanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelPlacementTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -147,8 +159,6 @@
 		100000000000000000000205 /* MenuBar */ = {
 			isa = PBXGroup;
 			children = (
-				100000000000000000000102 /* MenuBarView.swift */,
-				100000000000000000000103 /* MenuBarIcon.swift */,
 				100000000000000000000118 /* MenuBarController.swift */,
 			);
 			path = MenuBar;
@@ -159,8 +169,10 @@
 			children = (
 				100000000000000000000104 /* QuickAddParser.swift */,
 				10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */,
+				A10000000000000000000102 /* QuickAddDraft.swift */,
 				10000000000000000000011D /* DueDatePickerPopover.swift */,
 				100000000000000000000112 /* HighlightedQuickAddTextField.swift */,
+				A10000000000000000000103 /* QuickAddMetadataViews.swift */,
 				100000000000000000000122 /* QuickAddWindowSnapping.swift */,
 				10000000000000000000010F /* QuickAddWindowController.swift */,
 				100000000000000000000110 /* QuickAddWindowView.swift */,
@@ -172,6 +184,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000105 /* ReminderItem.swift */,
+				A10000000000000000000101 /* ReminderCreationRequest.swift */,
 				100000000000000000000111 /* ReminderFormatting.swift */,
 				100000000000000000000113 /* AppSettings.swift */,
 			);
@@ -203,6 +216,9 @@
 			children = (
 				10000000000000000000010B /* QuickAddParserTests.swift */,
 				10000000000000000000011B /* AppSettingsStoreTests.swift */,
+				A10000000000000000000106 /* ReminderCreationRequestTests.swift */,
+				A10000000000000000000107 /* QuickAddDraftTests.swift */,
+				A10000000000000000000108 /* SettingsPanelPlacementTests.swift */,
 				10000000000000000000011F /* ReminderFormattingTests.swift */,
 				100000000000000000000121 /* ReminderAccessControllerTests.swift */,
 				100000000000000000000123 /* QuickAddWindowSnappingTests.swift */,
@@ -232,6 +248,8 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000116 /* SettingsView.swift */,
+				A10000000000000000000104 /* SettingsViewModel.swift */,
+				A10000000000000000000105 /* SettingsWindowController.swift */,
 				100000000000000000000117 /* ShortcutRecorderView.swift */,
 			);
 			path = Settings;
@@ -337,8 +355,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000001 /* TallyApp.swift in Sources */,
-				100000000000000000000002 /* MenuBarView.swift in Sources */,
-				100000000000000000000003 /* MenuBarIcon.swift in Sources */,
 				100000000000000000000004 /* QuickAddParser.swift in Sources */,
 				100000000000000000000018 /* QuickAddDueDateTokenEditor.swift in Sources */,
 				100000000000000000000019 /* DueDatePickerPopover.swift in Sources */,
@@ -359,6 +375,11 @@
 				100000000000000000000013 /* ShortcutRecorderView.swift in Sources */,
 				100000000000000000000014 /* MenuBarController.swift in Sources */,
 				10000000000000000000001A /* TallyChromeStyle.swift in Sources */,
+				A10000000000000000000001 /* ReminderCreationRequest.swift in Sources */,
+				A10000000000000000000002 /* QuickAddDraft.swift in Sources */,
+				A10000000000000000000003 /* QuickAddMetadataViews.swift in Sources */,
+				A10000000000000000000004 /* SettingsViewModel.swift in Sources */,
+				A10000000000000000000005 /* SettingsWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -368,6 +389,9 @@
 			files = (
 				100000000000000000000008 /* QuickAddParserTests.swift in Sources */,
 				100000000000000000000017 /* AppSettingsStoreTests.swift in Sources */,
+				A10000000000000000000006 /* ReminderCreationRequestTests.swift in Sources */,
+				A10000000000000000000007 /* QuickAddDraftTests.swift in Sources */,
+				A10000000000000000000008 /* SettingsPanelPlacementTests.swift in Sources */,
 				10000000000000000000001B /* ReminderFormattingTests.swift in Sources */,
 				10000000000000000000001D /* ReminderAccessControllerTests.swift in Sources */,
 				10000000000000000000001F /* QuickAddWindowSnappingTests.swift in Sources */,
@@ -389,6 +413,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -418,6 +443,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -442,6 +468,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -451,6 +478,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -480,6 +508,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -497,6 +526,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -506,6 +536,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = Tally/Supporting/Tally.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -531,6 +562,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = Tally/Supporting/Tally.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -558,6 +590,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -578,6 +611,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

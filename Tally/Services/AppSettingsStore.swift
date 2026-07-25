@@ -2,12 +2,6 @@ import Foundation
 
 @MainActor
 final class AppSettingsStore: ObservableObject {
-    @Published var badgeStyle: MenuBarBadgeStyle {
-        didSet {
-            userDefaults.set(badgeStyle.rawValue, forKey: Keys.badgeStyle)
-        }
-    }
-
     @Published var quickAddShortcut: GlobalShortcut {
         didSet {
             Self.persist(quickAddShortcut, to: userDefaults, forKey: Keys.quickAddShortcut)
@@ -20,17 +14,27 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
+    @Published var defaultListIdentifier: String? {
+        didSet {
+            if let defaultListIdentifier {
+                userDefaults.set(defaultListIdentifier, forKey: Keys.defaultListIdentifier)
+            } else {
+                userDefaults.removeObject(forKey: Keys.defaultListIdentifier)
+            }
+        }
+    }
+
+    @Published var quickAddBehavior: QuickAddBehavior {
+        didSet {
+            userDefaults.set(quickAddBehavior.rawValue, forKey: Keys.quickAddBehavior)
+        }
+    }
+
     private let userDefaults: UserDefaults
 
-    init(userDefaults: UserDefaults = .standard) {
+    init(userDefaults: UserDefaults? = nil) {
+        let userDefaults = userDefaults ?? Self.defaultUserDefaults()
         self.userDefaults = userDefaults
-
-        if let rawBadgeStyle = userDefaults.string(forKey: Keys.badgeStyle),
-           let badgeStyle = MenuBarBadgeStyle(rawValue: rawBadgeStyle) {
-            self.badgeStyle = badgeStyle
-        } else {
-            self.badgeStyle = .trailingCount
-        }
 
         self.quickAddShortcut = Self.loadShortcut(
             forKey: Keys.quickAddShortcut,
@@ -42,6 +46,28 @@ final class AppSettingsStore: ObservableObject {
             from: userDefaults,
             defaultValue: .defaultTrayValue
         )
+        self.defaultListIdentifier = userDefaults.string(forKey: Keys.defaultListIdentifier)
+
+        if let rawBehavior = userDefaults.string(forKey: Keys.quickAddBehavior),
+           let behavior = QuickAddBehavior(rawValue: rawBehavior) {
+            self.quickAddBehavior = behavior
+        } else {
+            self.quickAddBehavior = .closeAfterAdding
+        }
+
+    }
+
+    private static func defaultUserDefaults() -> UserDefaults {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            let suiteName = "Tally.UITesting"
+            let userDefaults = UserDefaults(suiteName: suiteName) ?? .standard
+            userDefaults.removePersistentDomain(forName: suiteName)
+            return userDefaults
+        }
+        #endif
+
+        return .standard
     }
 
     private static func loadShortcut(
@@ -72,8 +98,9 @@ final class AppSettingsStore: ObservableObject {
     }
 
     private enum Keys {
-        static let badgeStyle = "MenuBarBadgeStyle"
         static let quickAddShortcut = "QuickAddShortcut"
         static let trayShortcut = "TrayShortcut"
+        static let defaultListIdentifier = "DefaultReminderListIdentifier"
+        static let quickAddBehavior = "QuickAddBehavior"
     }
 }

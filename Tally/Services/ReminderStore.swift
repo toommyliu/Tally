@@ -8,6 +8,7 @@ final class ReminderStore: ObservableObject {
 
     @Published private(set) var accessState: AccessState = .unknown
     @Published private(set) var reminders: [ReminderItem] = []
+    @Published private(set) var reminderLists: [ReminderListInfo] = []
     @Published private(set) var isLoading = false
     @Published private(set) var isSaving = false
     @Published var errorMessage: String?
@@ -15,8 +16,15 @@ final class ReminderStore: ObservableObject {
     private let eventStore = EKEventStore()
     private let accessController: ReminderAccessController
     private var changeObserver: NSObjectProtocol?
+    private var scheduledReloadTask: Task<Void, Never>?
+    private var reloadGeneration = 0
+    private let isUITesting: Bool
 
     var activeListTitle: String {
+        if isUITesting {
+            return reminderLists.first?.title ?? "Inbox"
+        }
+
         guard accessState == .authorized else {
             return "Inbox"
         }
@@ -25,19 +33,39 @@ final class ReminderStore: ObservableObject {
     }
 
     var reminderListTitles: [String] {
-        guard accessState == .authorized else {
-            return []
-        }
-
-        return eventStore
-            .calendars(for: .reminder)
-            .filter(\.allowsContentModifications)
-            .map(\.title)
-            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        reminderLists.map(\.title)
     }
 
     init() {
+        #if DEBUG
+        isUITesting = ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        #else
+        isUITesting = false
+        #endif
+
         accessController = ReminderAccessController(eventStore: eventStore)
+
+        if isUITesting {
+            accessState = .authorized
+            reminderLists = [
+                ReminderListInfo(id: "ui-inbox", title: "Inbox"),
+                ReminderListInfo(id: "ui-personal", title: "Personal"),
+                ReminderListInfo(id: "ui-work", title: "Work")
+            ]
+            reminders = [
+                ReminderItem(
+                    id: "ui-review",
+                    title: "Review launch checklist",
+                    notes: nil,
+                    listTitle: "Work",
+                    dueDate: Calendar.current.dateComponents(
+                        [.calendar, .timeZone, .year, .month, .day],
+                        from: Date()
+                    ),
+                    priority: 1
+                )
+            ]
+        }
 
         changeObserver = NotificationCenter.default.addObserver(
             forName: .EKEventStoreChanged,
@@ -45,7 +73,7 @@ final class ReminderStore: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                await self?.reload()
+                self?.scheduleReloadAfterExternalChange()
             }
         }
     }
@@ -54,9 +82,14 @@ final class ReminderStore: ObservableObject {
         if let changeObserver {
             NotificationCenter.default.removeObserver(changeObserver)
         }
+        scheduledReloadTask?.cancel()
     }
 
     func bootstrap() async {
+        guard !isUITesting else {
+            return
+        }
+
         refreshAccessState()
 
         if accessState == .notDetermined {
@@ -67,10 +100,20 @@ final class ReminderStore: ObservableObject {
     }
 
     func refreshAccessState() {
+        guard !isUITesting else {
+            accessState = .authorized
+            return
+        }
+
         accessState = accessController.currentState()
     }
 
     func requestAccess() async {
+        guard !isUITesting else {
+            accessState = .authorized
+            return
+        }
+
         let currentState = accessController.currentState()
 
         guard currentState == .notDetermined else {
@@ -101,60 +144,120 @@ final class ReminderStore: ObservableObject {
     }
 
     func reload() async {
-        refreshAccessState()
+        scheduledReloadTask?.cancel()
+        scheduledReloadTask = nil
+        await performReload()
+    }
 
-        guard accessState == .authorized else {
+    private func performReload() async {
+        guard !isUITesting else {
             return
         }
 
+        refreshAccessState()
+
+        guard accessState == .authorized else {
+            reminders = []
+            reminderLists = []
+            isLoading = false
+            return
+        }
+
+        reloadGeneration += 1
+        let generation = reloadGeneration
         isLoading = true
-        defer { isLoading = false }
+        reminderLists = writableReminderLists()
 
         do {
             let fetchedReminders = try await fetchIncompleteReminders()
+            guard generation == reloadGeneration else {
+                return
+            }
+
             reminders = fetchedReminders
                 .map(ReminderItem.init(reminder:))
                 .sorted(by: ReminderStore.sortReminders)
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if generation == reloadGeneration {
+                errorMessage = error.localizedDescription
+            }
+        }
+
+        if generation == reloadGeneration {
+            isLoading = false
         }
     }
 
-    func addReminder(
-        from input: String,
-        notes: String?,
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
-    ) async {
-        guard await ensureAccessForUserAction() else {
-            return
+    @discardableResult
+    func addReminder(_ request: ReminderCreationRequest) async -> Bool {
+        guard !request.title.isEmpty else {
+            return false
         }
 
-        let fields = QuickAddParser.parse(input, suppressedInferredTokens: suppressedInferredTokens)
-        guard !fields.title.isEmpty else {
-            return
+        if isUITesting {
+            return await addUITestingReminder(request)
+        }
+
+        guard await ensureAccessForUserAction() else {
+            errorMessage = accessState.saveErrorMessage
+            return false
         }
 
         isSaving = true
         defer { isSaving = false }
 
         do {
+            guard let calendar = writableCalendar(for: request) else {
+                throw ReminderStoreError.noWritableList
+            }
+
             let reminder = EKReminder(eventStore: eventStore)
-            reminder.title = fields.title
-            reminder.calendar = writableCalendar(named: fields.listName)
-            reminder.priority = fields.priority
-            reminder.dueDateComponents = fields.dueDate
-            reminder.notes = combinedNotes(userNotes: notes, inlineNotes: fields.inlineNotes, tags: fields.tags)
+            reminder.title = request.title
+            reminder.calendar = calendar
+            reminder.priority = request.priority
+            reminder.dueDateComponents = request.dueDate
+            reminder.notes = request.combinedNotes
 
             try eventStore.save(reminder, commit: true)
             await reload()
             errorMessage = nil
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
+    @available(*, deprecated, message: "Create a ReminderCreationRequest before saving.")
+    func addReminder(
+        from input: String,
+        notes: String?,
+        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+    ) async -> Bool {
+        let fields = QuickAddParser.parse(input, suppressedInferredTokens: suppressedInferredTokens)
+        guard !fields.title.isEmpty else {
+            return false
+        }
+
+        return await addReminder(ReminderCreationRequest(
+            title: fields.title,
+            userNotes: notes,
+            inlineNotes: fields.inlineNotes,
+            tags: fields.tags,
+            listIdentifier: nil,
+            listName: fields.listName,
+            dueDate: fields.dueDate,
+            priority: fields.priority
+        ))
+    }
+
     func completeReminder(withID id: String) async {
+        if isUITesting {
+            reminders.removeAll { $0.id == id }
+            return
+        }
+
         guard await ensureAccessForUserAction() else {
             return
         }
@@ -175,6 +278,11 @@ final class ReminderStore: ObservableObject {
     }
 
     func deleteReminder(withID id: String) async {
+        if isUITesting {
+            reminders.removeAll { $0.id == id }
+            return
+        }
+
         guard await ensureAccessForUserAction() else {
             return
         }
@@ -237,8 +345,34 @@ final class ReminderStore: ObservableObject {
         }
     }
 
-    private func writableCalendar(named listName: String?) -> EKCalendar? {
-        if let listName,
+    func destinationListTitle(for request: ReminderCreationRequest) -> String {
+        if isUITesting {
+            return uiTestingList(for: request)?.title ?? activeListTitle
+        }
+
+        return writableCalendar(for: request)?.title ?? activeListTitle
+    }
+
+    func preferredList(for identifier: String?) -> ReminderListInfo? {
+        guard let identifier else {
+            return reminderLists.first { $0.title == activeListTitle }
+        }
+
+        return reminderLists.first { $0.id == identifier }
+            ?? reminderLists.first { $0.title == activeListTitle }
+    }
+
+    private func writableCalendar(for request: ReminderCreationRequest) -> EKCalendar? {
+        let calendars = eventStore
+            .calendars(for: .reminder)
+            .filter(\.allowsContentModifications)
+
+        if let listIdentifier = request.listIdentifier,
+           let calendar = calendars.first(where: { $0.calendarIdentifier == listIdentifier }) {
+            return calendar
+        }
+
+        if let listName = request.listName,
            let matchingCalendar = eventStore
             .calendars(for: .reminder)
             .first(where: { calendar in
@@ -251,7 +385,20 @@ final class ReminderStore: ObservableObject {
             return matchingCalendar
         }
 
-        return eventStore.defaultCalendarForNewReminders()
+        if let defaultCalendar = eventStore.defaultCalendarForNewReminders(),
+           defaultCalendar.allowsContentModifications {
+            return defaultCalendar
+        }
+
+        return calendars.first
+    }
+
+    private func writableReminderLists() -> [ReminderListInfo] {
+        eventStore
+            .calendars(for: .reminder)
+            .filter(\.allowsContentModifications)
+            .map { ReminderListInfo(id: $0.calendarIdentifier, title: $0.title) }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
     private func ensureAccessForUserAction() async -> Bool {
@@ -271,24 +418,56 @@ final class ReminderStore: ObservableObject {
         return false
     }
 
-    private func combinedNotes(userNotes: String?, inlineNotes: String?, tags: [String]) -> String? {
-        let cleanedUserNotes = userNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanedInlineNotes = inlineNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
-        var parts: [String] = []
-
-        if let cleanedUserNotes, !cleanedUserNotes.isEmpty {
-            parts.append(cleanedUserNotes)
+    private func scheduleReloadAfterExternalChange() {
+        guard !isUITesting else {
+            return
         }
 
-        if let cleanedInlineNotes, !cleanedInlineNotes.isEmpty {
-            parts.append(cleanedInlineNotes)
+        scheduledReloadTask?.cancel()
+        scheduledReloadTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await self?.performReload()
+        }
+    }
+
+    private func addUITestingReminder(_ request: ReminderCreationRequest) async -> Bool {
+        isSaving = true
+        try? await Task.sleep(for: .milliseconds(120))
+        let listTitle = uiTestingList(for: request)?.title ?? activeListTitle
+        reminders.append(ReminderItem(
+            id: "ui-\(UUID().uuidString)",
+            title: request.title,
+            notes: request.combinedNotes,
+            listTitle: listTitle,
+            dueDate: request.dueDate,
+            priority: request.priority
+        ))
+        reminders.sort(by: ReminderStore.sortReminders)
+        isSaving = false
+        errorMessage = nil
+        return true
+    }
+
+    private func uiTestingList(for request: ReminderCreationRequest) -> ReminderListInfo? {
+        if let listIdentifier = request.listIdentifier,
+           let list = reminderLists.first(where: { $0.id == listIdentifier }) {
+            return list
         }
 
-        if !tags.isEmpty {
-            parts.append("Tags: " + tags.map { "@\($0)" }.joined(separator: " "))
+        if let listName = request.listName {
+            return reminderLists.first {
+                $0.title.compare(
+                    listName,
+                    options: [.caseInsensitive, .diacriticInsensitive]
+                ) == .orderedSame
+            }
         }
 
-        return parts.isEmpty ? nil : parts.joined(separator: "\n")
+        return reminderLists.first
     }
 
     private static func sortReminders(_ lhs: ReminderItem, _ rhs: ReminderItem) -> Bool {
@@ -317,5 +496,31 @@ final class ReminderStore: ObservableObject {
 private extension DateComponents {
     var sortDate: Date? {
         Calendar.current.date(from: self)
+    }
+}
+
+private enum ReminderStoreError: LocalizedError {
+    case noWritableList
+
+    var errorDescription: String? {
+        switch self {
+        case .noWritableList:
+            return "No writable Reminders list is available."
+        }
+    }
+}
+
+private extension ReminderAccessState {
+    var saveErrorMessage: String {
+        switch self {
+        case .notDetermined, .requesting:
+            return "Waiting for Reminders access."
+        case .denied:
+            return "Reminders access is off. Enable it in System Settings."
+        case .unknown:
+            return "Tally could not verify Reminders access."
+        case .authorized:
+            return "The reminder could not be saved."
+        }
     }
 }

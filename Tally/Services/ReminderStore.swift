@@ -208,10 +208,7 @@ final class ReminderStore: ObservableObject {
         defer { isSaving = false }
 
         do {
-            guard let calendar = writableCalendar(for: request) else {
-                throw ReminderStoreError.noWritableList
-            }
-
+            let calendar = try writableCalendar(for: request)
             let reminder = EKReminder(eventStore: eventStore)
             reminder.title = request.title
             reminder.calendar = calendar
@@ -350,7 +347,7 @@ final class ReminderStore: ObservableObject {
             return uiTestingList(for: request)?.title ?? activeListTitle
         }
 
-        return writableCalendar(for: request)?.title ?? activeListTitle
+        return (try? writableCalendar(for: request))?.title ?? activeListTitle
     }
 
     func preferredList(for identifier: String?) -> ReminderListInfo? {
@@ -359,38 +356,30 @@ final class ReminderStore: ObservableObject {
         }
 
         return reminderLists.first { $0.id == identifier }
-            ?? reminderLists.first { $0.title == activeListTitle }
     }
 
-    private func writableCalendar(for request: ReminderCreationRequest) -> EKCalendar? {
+    private func writableCalendar(for request: ReminderCreationRequest) throws -> EKCalendar {
         let calendars = eventStore
             .calendars(for: .reminder)
             .filter(\.allowsContentModifications)
+        let defaultCalendar = eventStore.defaultCalendarForNewReminders()
+            .flatMap { $0.allowsContentModifications ? $0 : nil }
 
-        if let listIdentifier = request.listIdentifier,
-           let calendar = calendars.first(where: { $0.calendarIdentifier == listIdentifier }) {
+        if let calendar = ReminderDestinationResolver.resolve(
+            request: request,
+            writableDestinations: calendars,
+            defaultDestination: defaultCalendar,
+            identifier: \.calendarIdentifier,
+            title: \.title
+        ) {
             return calendar
         }
 
-        if let listName = request.listName,
-           let matchingCalendar = eventStore
-            .calendars(for: .reminder)
-            .first(where: { calendar in
-                calendar.allowsContentModifications &&
-                    calendar.title.compare(
-                        listName,
-                        options: [.caseInsensitive, .diacriticInsensitive]
-                    ) == .orderedSame
-            }) {
-            return matchingCalendar
+        if request.requiresSpecificList {
+            throw ReminderStoreError.requestedListUnavailable
         }
 
-        if let defaultCalendar = eventStore.defaultCalendarForNewReminders(),
-           defaultCalendar.allowsContentModifications {
-            return defaultCalendar
-        }
-
-        return calendars.first
+        throw ReminderStoreError.noWritableList
     }
 
     private func writableReminderLists() -> [ReminderListInfo] {
@@ -437,7 +426,14 @@ final class ReminderStore: ObservableObject {
     private func addUITestingReminder(_ request: ReminderCreationRequest) async -> Bool {
         isSaving = true
         try? await Task.sleep(for: .milliseconds(120))
-        let listTitle = uiTestingList(for: request)?.title ?? activeListTitle
+        guard let listTitle = uiTestingList(for: request)?.title else {
+            isSaving = false
+            errorMessage = request.requiresSpecificList
+                ? ReminderStoreError.requestedListUnavailable.localizedDescription
+                : ReminderStoreError.noWritableList.localizedDescription
+            return false
+        }
+
         reminders.append(ReminderItem(
             id: "ui-\(UUID().uuidString)",
             title: request.title,
@@ -453,21 +449,13 @@ final class ReminderStore: ObservableObject {
     }
 
     private func uiTestingList(for request: ReminderCreationRequest) -> ReminderListInfo? {
-        if let listIdentifier = request.listIdentifier,
-           let list = reminderLists.first(where: { $0.id == listIdentifier }) {
-            return list
-        }
-
-        if let listName = request.listName {
-            return reminderLists.first {
-                $0.title.compare(
-                    listName,
-                    options: [.caseInsensitive, .diacriticInsensitive]
-                ) == .orderedSame
-            }
-        }
-
-        return reminderLists.first
+        ReminderDestinationResolver.resolve(
+            request: request,
+            writableDestinations: reminderLists,
+            defaultDestination: reminderLists.first,
+            identifier: \.id,
+            title: \.title
+        )
     }
 
     private static func sortReminders(_ lhs: ReminderItem, _ rhs: ReminderItem) -> Bool {
@@ -501,12 +489,42 @@ private extension DateComponents {
 
 private enum ReminderStoreError: LocalizedError {
     case noWritableList
+    case requestedListUnavailable
 
     var errorDescription: String? {
         switch self {
         case .noWritableList:
             return "No writable Reminders list is available."
+        case .requestedListUnavailable:
+            return "The requested Reminders list is unavailable or read-only."
         }
+    }
+}
+
+enum ReminderDestinationResolver {
+    static func resolve<Destination>(
+        request: ReminderCreationRequest,
+        writableDestinations: [Destination],
+        defaultDestination: Destination?,
+        identifier: (Destination) -> String,
+        title: (Destination) -> String
+    ) -> Destination? {
+        if let listIdentifier = request.listIdentifier {
+            return writableDestinations.first {
+                identifier($0) == listIdentifier
+            }
+        }
+
+        if let listName = request.listName {
+            return writableDestinations.first {
+                title($0).compare(
+                    listName,
+                    options: [.caseInsensitive, .diacriticInsensitive]
+                ) == .orderedSame
+            }
+        }
+
+        return defaultDestination ?? writableDestinations.first
     }
 }
 

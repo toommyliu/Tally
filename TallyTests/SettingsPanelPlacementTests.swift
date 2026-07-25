@@ -3,6 +3,15 @@ import XCTest
 @testable import Tally
 
 final class SettingsPanelPlacementTests: XCTestCase {
+    func testPresentationRequestSupersedesActiveDismissal() {
+        var state = SettingsPresentationState.dismissing
+
+        let action = state.beginPresentationRequest()
+
+        XCTAssertEqual(action, .restoreAfterDismissal)
+        XCTAssertEqual(state, .presenting)
+    }
+
     func testAnchoredPanelCentersBelowStatusItem() {
         let frame = SettingsPanelPlacement.frame(
             anchorRect: NSRect(x: 490, y: 970, width: 20, height: 22),

@@ -243,8 +243,17 @@ struct QuickAddWindowView: View {
     }
 
     private var fallbackList: ReminderListInfo {
-        reminderStore.preferredList(for: draft.defaultListIdentifier)
-            ?? ReminderListInfo(id: "fallback", title: reminderStore.activeListTitle)
+        if let preferredList = reminderStore.preferredList(
+            for: draft.defaultListIdentifier
+        ) {
+            return preferredList
+        }
+
+        if draft.defaultListIdentifier != nil {
+            return ReminderListInfo(id: "unavailable", title: "Unavailable list")
+        }
+
+        return ReminderListInfo(id: "fallback", title: reminderStore.activeListTitle)
     }
 
     private var reminderDayCounts: [Date: Int] {

@@ -15,6 +15,10 @@ struct ReminderCreationRequest: Equatable {
     let dueDate: DateComponents?
     let priority: Int
 
+    var requiresSpecificList: Bool {
+        listIdentifier != nil || listName != nil
+    }
+
     var combinedNotes: String? {
         var parts: [String] = []
 

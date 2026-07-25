@@ -103,14 +103,19 @@ final class SettingsWindowController: NSWindowController {
         let window = loadSettingsWindow()
         viewModel?.refresh()
 
-        guard presentationState == .hidden else {
+        switch presentationState.beginPresentationRequest() {
+        case .bringForward:
             window.makeKeyAndOrderFront(nil)
             return
+        case .restoreAfterDismissal:
+            restorePresentation(window)
+            return
+        case .animate:
+            break
         }
 
         transitionGeneration += 1
         let generation = transitionGeneration
-        presentationState = .presenting
         resizeWindow(toContentHeight: requestedContentHeight)
         positionWindow()
         window.alphaValue = 0
@@ -127,6 +132,21 @@ final class SettingsWindowController: NSWindowController {
                 self?.animatePresentation(generation: generation)
             }
         }
+    }
+
+    private func restorePresentation(_ window: SettingsPanel) {
+        transitionGeneration += 1
+        dismissalCompletions.removeAll()
+        resizeWindow(toContentHeight: requestedContentHeight)
+        positionWindow()
+        window.alphaValue = 1
+        window.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKey()
+        configureOuterScrollView()
+        (anchorView as? NSStatusBarButton)?.highlight(true)
+        startOutsideClickMonitoring()
+        presentationState = .presented
     }
 
     func dismiss(animated: Bool = true, completion: (() -> Void)? = nil) {
@@ -514,11 +534,30 @@ final class SettingsWindowController: NSWindowController {
     }
 }
 
-private enum SettingsPresentationState {
+enum SettingsPresentationState: Equatable {
     case hidden
     case presenting
     case presented
     case dismissing
+
+    mutating func beginPresentationRequest() -> SettingsPresentationAction {
+        switch self {
+        case .hidden:
+            self = .presenting
+            return .animate
+        case .dismissing:
+            self = .presenting
+            return .restoreAfterDismissal
+        case .presenting, .presented:
+            return .bringForward
+        }
+    }
+}
+
+enum SettingsPresentationAction: Equatable {
+    case animate
+    case restoreAfterDismissal
+    case bringForward
 }
 
 enum SettingsPanelTransition {

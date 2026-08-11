@@ -1,0 +1,40 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.83922,0.92549,0.92549,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "03-pocket.svg",
+          "name" : "03-pocket"
+        },
+        {
+          "glass" : false,
+          "image-name" : "02-relaxed-check.svg",
+          "name" : "02-relaxed-check"
+        },
+        {
+          "glass" : false,
+          "image-name" : "01-reminder-card.svg",
+          "name" : "01-reminder-card"
+        }
+      ],
+      "name" : "Tally Pocket",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [
+      "macOS"
+    ]
+  }
+}

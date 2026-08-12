@@ -213,6 +213,24 @@ final class ReminderStore: ObservableObject {
             ReminderEventKitMapper.populate(reminder, from: request, calendar: calendar)
 
             try eventStore.save(reminder, commit: true)
+            do {
+                try ReminderKitMetadataWriter.apply(request, to: reminder)
+            } catch {
+                let metadataError = error
+
+                do {
+                    try eventStore.remove(reminder, commit: true)
+                } catch {
+                    throw ReminderStoreError.nativeMetadataRollbackFailed(
+                        metadataError: metadataError.localizedDescription,
+                        rollbackError: error.localizedDescription
+                    )
+                }
+
+                throw ReminderStoreError.nativeMetadataSaveFailed(
+                    metadataError.localizedDescription
+                )
+            }
             await reload()
             errorMessage = nil
             return true
@@ -489,6 +507,8 @@ private extension DateComponents {
 private enum ReminderStoreError: LocalizedError {
     case noWritableList
     case requestedListUnavailable
+    case nativeMetadataSaveFailed(String)
+    case nativeMetadataRollbackFailed(metadataError: String, rollbackError: String)
 
     var errorDescription: String? {
         switch self {
@@ -496,6 +516,10 @@ private enum ReminderStoreError: LocalizedError {
             return "No writable Reminders list is available."
         case .requestedListUnavailable:
             return "The requested Reminders list is unavailable or read-only."
+        case let .nativeMetadataSaveFailed(message):
+            return "The reminder wasn't added because its native fields could not be saved: \(message)"
+        case let .nativeMetadataRollbackFailed(metadataError, rollbackError):
+            return "The reminder was added, but its native fields failed (\(metadataError)) and Tally could not remove it (\(rollbackError))."
         }
     }
 }

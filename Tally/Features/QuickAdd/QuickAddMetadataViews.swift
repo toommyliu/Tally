@@ -751,6 +751,12 @@ struct QuickAddHelpPopover: View {
                     title: "Notes",
                     examples: "// details"
                 )
+                helpRow(
+                    icon: "repeat",
+                    tint: TallyPalette.date,
+                    title: "Repeat",
+                    examples: "every Monday · every 2 weeks"
+                )
             }
 
             Divider()
@@ -762,7 +768,7 @@ struct QuickAddHelpPopover: View {
             }
         }
         .padding(14)
-        .frame(width: 304, alignment: .leading)
+        .frame(width: 336, alignment: .leading)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 

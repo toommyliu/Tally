@@ -45,6 +45,8 @@
 		B20000000000000000000001 /* QuickAddWindowPositionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000101 /* QuickAddWindowPositionStore.swift */; };
 		B20000000000000000000002 /* QuickAddWindowPositionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */; };
 		C30000000000000000000001 /* ReminderSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000101 /* ReminderSchedule.swift */; };
+		C30000000000000000000002 /* QuickAddParsingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000102 /* QuickAddParsingSupport.swift */; };
+		C30000000000000000000003 /* QuickAddReminderMetadataParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000103 /* QuickAddReminderMetadataParser.swift */; };
 		C30000000000000000000004 /* ReminderEventKitMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000104 /* ReminderEventKitMapper.swift */; };
 		D40000000000000000000001 /* ReminderKitBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000102 /* ReminderKitBridge.m */; };
 		D40000000000000000000002 /* ReminderKitMetadataWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000103 /* ReminderKitMetadataWriter.swift */; };
@@ -105,6 +107,8 @@
 		B20000000000000000000101 /* QuickAddWindowPositionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowPositionStore.swift; sourceTree = "<group>"; };
 		B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowPositionStoreTests.swift; sourceTree = "<group>"; };
 		C30000000000000000000101 /* ReminderSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderSchedule.swift; sourceTree = "<group>"; };
+		C30000000000000000000102 /* QuickAddParsingSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddParsingSupport.swift; sourceTree = "<group>"; };
+		C30000000000000000000103 /* QuickAddReminderMetadataParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddReminderMetadataParser.swift; sourceTree = "<group>"; };
 		C30000000000000000000104 /* ReminderEventKitMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderEventKitMapper.swift; sourceTree = "<group>"; };
 		D40000000000000000000101 /* ReminderKitBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ReminderKitBridge.h; sourceTree = "<group>"; };
 		D40000000000000000000102 /* ReminderKitBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ReminderKitBridge.m; sourceTree = "<group>"; };
@@ -186,6 +190,8 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000104 /* QuickAddParser.swift */,
+				C30000000000000000000102 /* QuickAddParsingSupport.swift */,
+				C30000000000000000000103 /* QuickAddReminderMetadataParser.swift */,
 				10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */,
 				A10000000000000000000102 /* QuickAddDraft.swift */,
 				10000000000000000000011D /* DueDatePickerPopover.swift */,
@@ -385,6 +391,8 @@
 			files = (
 				100000000000000000000001 /* TallyApp.swift in Sources */,
 				100000000000000000000004 /* QuickAddParser.swift in Sources */,
+				C30000000000000000000002 /* QuickAddParsingSupport.swift in Sources */,
+				C30000000000000000000003 /* QuickAddReminderMetadataParser.swift in Sources */,
 				100000000000000000000018 /* QuickAddDueDateTokenEditor.swift in Sources */,
 				100000000000000000000019 /* DueDatePickerPopover.swift in Sources */,
 				100000000000000000000005 /* ReminderItem.swift in Sources */,

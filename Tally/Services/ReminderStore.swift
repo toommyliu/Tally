@@ -244,9 +244,9 @@ final class ReminderStore: ObservableObject {
     func addReminder(
         from input: String,
         notes: String?,
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) async -> Bool {
-        let fields = QuickAddParser.parse(input, suppressedInferredTokens: suppressedInferredTokens)
+        let fields = QuickAddParser.parse(input, suppressedTokens: suppressedTokens)
         guard !fields.title.isEmpty else {
             return false
         }
@@ -259,9 +259,9 @@ final class ReminderStore: ObservableObject {
             listIdentifier: nil,
             listName: fields.listName,
             dueDate: fields.dueDate,
-            recurrence: nil,
-            earlyReminder: nil,
-            url: nil,
+            recurrence: fields.recurrence,
+            earlyReminder: fields.earlyReminder,
+            url: fields.url,
             priority: fields.priority
         ))
     }

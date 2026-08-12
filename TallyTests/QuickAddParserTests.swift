@@ -156,7 +156,7 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertEqual(relativeTime, "Review notes #Work P2")
     }
 
-    func testDueDateTokenEditorRespectsSuppressedInferredTokens() throws {
+    func testDueDateTokenEditorRespectsSuppressedTokens() throws {
         let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
         let input = "Dinner 6pm"
         let parsed = QuickAddParser.parse(input, calendar: calendar, now: now)
@@ -169,7 +169,7 @@ final class QuickAddParserTests: XCTestCase {
             to: input,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: [
+            suppressedTokens: [
                 QuickAddSuppressedToken(
                     kind: token.kind,
                     range: token.range,
@@ -460,6 +460,28 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertToken(in: fields, originalText: input, kind: .time, equals: "later today")
     }
 
+    func testNamedDaypartsAlwaysResolveInTheFuture() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 20, minute: 0)
+        let expectations: [(String, Int)] = [
+            ("Take out trash tonight", 18),
+            ("Review notes later today", 17),
+            ("Call dentist this afternoon", 14)
+        ]
+
+        for (input, expectedHour) in expectations {
+            let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+            XCTAssertDate(
+                fields.dueDate,
+                year: 2026,
+                month: 5,
+                day: 14,
+                hour: expectedHour,
+                minute: 0
+            )
+        }
+    }
+
     func testParsesNextWeekday() throws {
         let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
         let input = "Book flight next monday"
@@ -591,7 +613,713 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertNil(daily.dueDate)
     }
 
-    func testCanSuppressInferredDateToken() throws {
+    func testParsesDailyRecurrenceAtNextMatchingTime() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let input = "Take vitamins every day at 10am"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Take vitamins")
+        XCTAssertEqual(fields.recurrence, ReminderRecurrence(frequency: .daily))
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 13, hour: 10, minute: 0)
+        XCTAssertToken(in: fields, originalText: input, kind: .recurrence, equals: "every day at 10am")
+    }
+
+    func testDailyRecurrenceMovesPastElapsedTime() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+
+        let fields = QuickAddParser.parse("Take vitamins every day at 8am", calendar: calendar, now: now)
+
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 14, hour: 8, minute: 0)
+    }
+
+    func testParsesWeekdayAndNamedWeekdayRecurrences() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+
+        let weekdays = QuickAddParser.parse(
+            "Review queue every weekday at 9am",
+            calendar: calendar,
+            now: now
+        )
+        let monday = QuickAddParser.parse(
+            "Plan week every Monday at 5pm",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(
+            weekdays.recurrence,
+            ReminderRecurrence(
+                frequency: .weekly,
+                weekdays: [.monday, .tuesday, .wednesday, .thursday, .friday]
+            )
+        )
+        XCTAssertDate(weekdays.dueDate, year: 2026, month: 5, day: 14, hour: 9, minute: 0)
+        XCTAssertEqual(
+            monday.recurrence,
+            ReminderRecurrence(frequency: .weekly, weekdays: [.monday])
+        )
+        XCTAssertDate(monday.dueDate, year: 2026, month: 5, day: 18, hour: 17, minute: 0)
+    }
+
+    func testParsesIntervalRecurrence() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let input = "Water plants every 2 weeks"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Water plants")
+        XCTAssertEqual(fields.recurrence, ReminderRecurrence(frequency: .weekly, interval: 2))
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 27, hour: nil, minute: nil)
+        XCTAssertToken(in: fields, originalText: input, kind: .recurrence, equals: "every 2 weeks")
+    }
+
+    func testParsesDateBasedRecurrenceEnd() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let input = "Review plan every Monday at 9am until Sep 30"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Review plan")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 18, hour: 9, minute: 0)
+
+        guard case let .date(endDate)? = fields.recurrence?.end else {
+            return XCTFail("Expected a date-based recurrence end")
+        }
+
+        XCTAssertDate(endDate, year: 2026, month: 9, day: 30, hour: nil, minute: nil)
+        XCTAssertToken(
+            in: fields,
+            originalText: input,
+            kind: .recurrence,
+            equals: "every Monday at 9am until Sep 30"
+        )
+    }
+
+    func testNamedRecurrenceEndRollsForwardFromFirstOccurrence() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let input = "Renew policy every year until Sep 30"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Renew policy")
+        XCTAssertDate(fields.dueDate, year: 2027, month: 8, day: 12, hour: nil, minute: nil)
+
+        guard case let .date(endDate)? = fields.recurrence?.end else {
+            return XCTFail("Expected a date-based recurrence end")
+        }
+
+        XCTAssertDate(endDate, year: 2027, month: 9, day: 30, hour: nil, minute: nil)
+        XCTAssertToken(
+            in: fields,
+            originalText: input,
+            kind: .recurrence,
+            equals: "every year until Sep 30"
+        )
+    }
+
+    func testNamedDatesConsumeAnExplicitYear() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let recurrence = QuickAddParser.parse(
+            "Review every Monday at 9am until Sep 30 2027",
+            calendar: calendar,
+            now: now
+        )
+        let oneOff = QuickAddParser.parse(
+            "Review Sep 30 2027",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(recurrence.title, "Review")
+        guard case let .date(endDate)? = recurrence.recurrence?.end else {
+            return XCTFail("Expected a date-based recurrence end")
+        }
+        XCTAssertDate(endDate, year: 2027, month: 9, day: 30, hour: nil, minute: nil)
+        XCTAssertEqual(oneOff.title, "Review")
+        XCTAssertDate(oneOff.dueDate, year: 2027, month: 9, day: 30, hour: nil, minute: nil)
+    }
+
+    func testInvalidRecurrenceEndLeavesEntirePhraseAsTitleText() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let inputs = [
+            "Review every day for 0 occurrences",
+            "Review every day until Feb 30",
+            "Review every year until 2026-09-30"
+        ]
+
+        for input in inputs {
+            let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+            XCTAssertEqual(fields.title, input)
+            XCTAssertNil(fields.dueDate)
+            XCTAssertNil(fields.recurrence)
+            XCTAssertFalse(fields.usedTokens.contains { $0.kind == .recurrence })
+        }
+    }
+
+    func testUnsupportedRecurrenceEndDoesNotBecomeDueDate() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let inputs = [
+            "Review every Monday until tomorrow",
+            "Review every Monday until 9/30",
+            "Review every Monday until next week",
+            "Review every Monday until Friday at 9am"
+        ]
+
+        for input in inputs {
+            let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+            XCTAssertEqual(fields.title, input)
+            XCTAssertNil(fields.dueDate)
+            XCTAssertNil(fields.recurrence)
+        }
+    }
+
+    func testRejectsRecurrenceIntervalsThatEventKitCannotRepresent() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let input = "Boom every 2147483648 days"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, input)
+        XCTAssertNil(fields.dueDate)
+        XCTAssertNil(fields.recurrence)
+    }
+
+    func testLeapDayRecurrenceEndRollsForwardToNextValidYear() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+
+        let fields = QuickAddParser.parse(
+            "Leap every year until Feb 29",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(fields.title, "Leap")
+        XCTAssertDate(fields.dueDate, year: 2027, month: 8, day: 12, hour: nil, minute: nil)
+        guard case let .date(endDate) = fields.recurrence?.end else {
+            return XCTFail("Expected a date-based recurrence end")
+        }
+        XCTAssertDate(endDate, year: 2028, month: 2, day: 29, hour: nil, minute: nil)
+    }
+
+    func testSlashLeapDayRollsForwardToNextValidYear() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+
+        let fields = QuickAddParser.parse("Review 2/29", calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Review")
+        XCTAssertDate(fields.dueDate, year: 2028, month: 2, day: 29, hour: nil, minute: nil)
+    }
+
+    func testParsesCountBasedRecurrenceEndAliases() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let occurrences = QuickAddParser.parse(
+            "Review plan every 2 weeks for 6 occurrences",
+            calendar: calendar,
+            now: now
+        )
+        let times = QuickAddParser.parse(
+            "Take vitamins every day at 10am for 3 times",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(occurrences.title, "Review plan")
+        XCTAssertEqual(occurrences.recurrence?.end, .occurrenceCount(6))
+        XCTAssertEqual(times.title, "Take vitamins")
+        XCTAssertEqual(times.recurrence?.end, .occurrenceCount(3))
+    }
+
+    func testLeavesRecurrenceEndDateAsTitleTextWithoutRecurrence() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+
+        let fields = QuickAddParser.parse(
+            "Review plan until Sep 30th",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(fields.title, "Review plan until Sep 30th")
+        XCTAssertNil(fields.dueDate)
+        XCTAssertNil(fields.recurrence)
+    }
+
+    func testParsesEarlyReminderLanguage() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let oneDay = QuickAddParser.parse(
+            "Renew policy tomorrow at 10am remind 1d before",
+            calendar: calendar,
+            now: now
+        )
+        let twoHours = QuickAddParser.parse(
+            "Join review tomorrow at 2pm remind me 2h before",
+            calendar: calendar,
+            now: now
+        )
+        let thirtyMinutes = QuickAddParser.parse(
+            "Submit report tomorrow at 10am remind 30m early",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(oneDay.title, "Renew policy")
+        XCTAssertEqual(oneDay.earlyReminder, ReminderEarlyReminder(amount: 1, unit: .days))
+        XCTAssertDate(oneDay.dueDate, year: 2026, month: 5, day: 14, hour: 10, minute: 0)
+        XCTAssertEqual(twoHours.title, "Join review")
+        XCTAssertEqual(twoHours.earlyReminder, ReminderEarlyReminder(amount: 2, unit: .hours))
+        XCTAssertEqual(thirtyMinutes.title, "Submit report")
+        XCTAssertEqual(
+            thirtyMinutes.earlyReminder,
+            ReminderEarlyReminder(amount: 30, unit: .minutes)
+        )
+    }
+
+    func testParsesEarlyReminderBeforeTimedSchedule() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+
+        let fields = QuickAddParser.parse(
+            "Review remind 2h early tomorrow at 5pm",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(fields.title, "Review")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 8, day: 13, hour: 17, minute: 0)
+        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: 2, unit: .hours))
+    }
+
+    func testEarlyReminderWithoutTimedScheduleCannotBecomeDueDate() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let input = "Review remind 2h early"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, input)
+        XCTAssertNil(fields.dueDate)
+        XCTAssertNil(fields.earlyReminder)
+    }
+
+    func testParsesStandaloneHTTPURL() {
+        let input = "Read proposal https://example.com/proposal?tab=summary #Work"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar)
+
+        XCTAssertEqual(fields.title, "Read proposal")
+        XCTAssertEqual(fields.url, URL(string: "https://example.com/proposal?tab=summary"))
+        XCTAssertEqual(fields.listName, "Work")
+        XCTAssertToken(
+            in: fields,
+            originalText: input,
+            kind: .url,
+            equals: "https://example.com/proposal?tab=summary"
+        )
+    }
+
+    func testTrimsExternalURLPunctuation() {
+        let cases = [
+            ("https://example.com/report,", "https://example.com/report"),
+            ("https://example.com/report.", "https://example.com/report"),
+            ("https://example.com/report)", "https://example.com/report"),
+            ("https://example.com/report_(final)", "https://example.com/report_(final)")
+        ]
+
+        for (inputURL, expectedURL) in cases {
+            let input = "Read proposal \(inputURL)"
+            let fields = QuickAddParser.parse(input, calendar: calendar)
+
+            XCTAssertEqual(fields.title, "Read proposal")
+            XCTAssertEqual(fields.url, URL(string: expectedURL))
+            XCTAssertToken(
+                in: fields,
+                originalText: input,
+                kind: .url,
+                equals: expectedURL
+            )
+        }
+    }
+
+    func testParsesURLInsideParentheses() {
+        let input = "Open (https://example.com/report)"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar)
+
+        XCTAssertEqual(fields.title, "Open")
+        XCTAssertEqual(fields.url, URL(string: "https://example.com/report"))
+        XCTAssertToken(
+            in: fields,
+            originalText: input,
+            kind: .url,
+            equals: "https://example.com/report"
+        )
+    }
+
+    func testParsesRecurrenceEarlyReminderAndURLTogether() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let input = "Review metrics every Monday at 9am remind 30m early https://example.com/metrics"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, "Review metrics")
+        XCTAssertEqual(
+            fields.recurrence,
+            ReminderRecurrence(frequency: .weekly, weekdays: [.monday])
+        )
+        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: 30, unit: .minutes))
+        XCTAssertEqual(fields.url, URL(string: "https://example.com/metrics"))
+        XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 18, hour: 9, minute: 0)
+        XCTAssertToken(in: fields, originalText: input, kind: .earlyReminder, equals: "remind 30m early")
+    }
+
+    func testLeavesEarlyReminderAsTitleTextWithoutTimedDueDate() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+
+        let fields = QuickAddParser.parse(
+            "Renew policy tomorrow remind 1d before",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(fields.title, "Renew policy remind 1d before")
+        XCTAssertNil(fields.earlyReminder)
+    }
+
+    func testDueDateEditorClearsRecurrence() throws {
+        let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
+        let input = "Standup every Monday at 9am #Work"
+
+        let output = QuickAddDueDateTokenEditor.applying(
+            nil,
+            to: input,
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(output, "Standup #Work")
+    }
+
+    func testEarlyReminderRequiresTheFinalSelectedDueDateToIncludeTime() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let notesInput = "Review remind 2h early // tomorrow at 5pm"
+        let dateOnlyInput = "Review remind 2h early tomorrow for the meeting at 5pm"
+
+        let notes = QuickAddParser.parse(notesInput, calendar: calendar, now: now)
+        let dateOnly = QuickAddParser.parse(dateOnlyInput, calendar: calendar, now: now)
+
+        XCTAssertEqual(notes.title, "Review remind 2h early")
+        XCTAssertEqual(notes.inlineNotes, "tomorrow at 5pm")
+        XCTAssertNil(notes.dueDate)
+        XCTAssertNil(notes.earlyReminder)
+        XCTAssertEqual(dateOnly.title, "Review remind 2h early for the meeting at 5pm")
+        XCTAssertDate(dateOnly.dueDate, year: 2026, month: 8, day: 13, hour: nil, minute: nil)
+        XCTAssertNil(dateOnly.earlyReminder)
+    }
+
+    func testInvalidRecurrenceKeepsItsAssociatedTimeLiteral() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let inputs = [
+            "Boom every 2147483648 days at 9am",
+            "Boom every 2147483648 days https://example.com at 9am",
+            "Boom every 2147483648 days remind 30m early at 9am",
+            "Review every Monday until tomorrow at 9am",
+            "Review every day for 10001 occurrences at 9am"
+        ]
+
+        for input in inputs {
+            let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+            XCTAssertEqual(fields.title, input)
+            XCTAssertNil(fields.dueDate)
+            XCTAssertNil(fields.recurrence)
+        }
+    }
+
+    func testUnsupportedRecurrenceGrammarCannotLeakAOneOffSchedule() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let inputs = [
+            "Review every other day at 9am",
+            "Review every Monday and Wednesday at 9am",
+            "Review every Monday at 9am and Wednesday",
+            "Review every Monday at 9am or Wednesday at 5pm",
+            "Review every Monday until Sep 30 and Wednesday"
+        ]
+
+        for input in inputs {
+            let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+            XCTAssertEqual(fields.title, input)
+            XCTAssertNil(fields.dueDate)
+            XCTAssertNil(fields.recurrence)
+        }
+    }
+
+    func testLateCalendarUnitRecurrencesPreserveTheirRequestedDay() throws {
+        let monthNow = try date(year: 2027, month: 1, day: 31, hour: 9, minute: 15)
+        let monthly = QuickAddParser.parse(
+            "Review every month for 2 occurrences",
+            calendar: calendar,
+            now: monthNow
+        )
+
+        XCTAssertDate(monthly.dueDate, year: 2027, month: 3, day: 31, hour: nil, minute: nil)
+        let monthlyEnd = try XCTUnwrap(ReminderRecurrenceCalculator.finalOccurrenceDate(
+            startingAt: try XCTUnwrap(monthly.dueDate),
+            recurrence: try XCTUnwrap(monthly.recurrence),
+            occurrenceCount: 2
+        ))
+        let monthlyEndComponents = calendar.dateComponents([.year, .month, .day], from: monthlyEnd)
+        XCTAssertDate(
+            monthlyEndComponents,
+            year: 2027,
+            month: 5,
+            day: 31,
+            hour: nil,
+            minute: nil
+        )
+
+        let leapNow = try date(year: 2028, month: 2, day: 29, hour: 9, minute: 15)
+        let yearly = QuickAddParser.parse(
+            "Review every year for 2 occurrences",
+            calendar: calendar,
+            now: leapNow
+        )
+
+        XCTAssertDate(yearly.dueDate, year: 2032, month: 2, day: 29, hour: nil, minute: nil)
+        let yearlyEnd = try XCTUnwrap(ReminderRecurrenceCalculator.finalOccurrenceDate(
+            startingAt: try XCTUnwrap(yearly.dueDate),
+            recurrence: try XCTUnwrap(yearly.recurrence),
+            occurrenceCount: 2
+        ))
+        let yearlyEndComponents = calendar.dateComponents([.year, .month, .day], from: yearlyEnd)
+        XCTAssertDate(
+            yearlyEndComponents,
+            year: 2036,
+            month: 2,
+            day: 29,
+            hour: nil,
+            minute: nil
+        )
+    }
+
+    func testDueDateEditorReplacesScheduleAfterEarlyReminder() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let selectionDate = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 0)
+        let input = "Review remind 2h early tomorrow at 5pm"
+
+        let output = QuickAddDueDateTokenEditor.applying(
+            QuickAddDueDateSelection(date: selectionDate, includesTime: true),
+            to: input,
+            calendar: calendar,
+            now: now
+        )
+        let fields = QuickAddParser.parse(output, calendar: calendar, now: now)
+
+        XCTAssertEqual(output, "Review remind 2h early 2026-08-14 3:00pm")
+        XCTAssertEqual(fields.title, "Review")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 8, day: 14, hour: 15, minute: 0)
+        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: 2, unit: .hours))
+    }
+
+    func testRecurrenceEndCanFollowOtherMetadata() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let inputs = [
+            "Review metrics every Monday at 9am remind 30m early until Sep 30 https://example.com",
+            "Review metrics every Monday at 9am https://example.com until Sep 30"
+        ]
+
+        for input in inputs {
+            let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+            XCTAssertEqual(fields.title, "Review metrics")
+            XCTAssertEqual(fields.url, URL(string: "https://example.com"))
+            guard case let .date(endDate)? = fields.recurrence?.end else {
+                return XCTFail("Expected a date-based recurrence end")
+            }
+            XCTAssertDate(endDate, year: 2026, month: 9, day: 30, hour: nil, minute: nil)
+        }
+    }
+
+    func testRecurrenceEndCanFollowListTagAndPriorityMetadata() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let inputs = [
+            "Review every Monday at 9am #Work until Sep 30",
+            "Review every Monday at 9am @work until Sep 30",
+            "Review every Monday at 9am P1 until Sep 30"
+        ]
+
+        for input in inputs {
+            let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+            XCTAssertEqual(fields.title, "Review")
+            guard case let .date(endDate)? = fields.recurrence?.end else {
+                return XCTFail("Expected a date-based recurrence end")
+            }
+            XCTAssertDate(endDate, year: 2026, month: 9, day: 30, hour: nil, minute: nil)
+        }
+    }
+
+    func testScheduleTimeCanFollowOtherMetadata() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let oneOff = QuickAddParser.parse(
+            "Review tomorrow #Work at 9am",
+            calendar: calendar,
+            now: now
+        )
+        let recurrence = QuickAddParser.parse(
+            "Review every Monday #Work at 9am until Sep 30",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(oneOff.title, "Review")
+        XCTAssertEqual(oneOff.listName, "Work")
+        XCTAssertDate(oneOff.dueDate, year: 2026, month: 8, day: 13, hour: 9, minute: 0)
+        XCTAssertEqual(recurrence.title, "Review")
+        XCTAssertEqual(recurrence.listName, "Work")
+        XCTAssertDate(recurrence.dueDate, year: 2026, month: 8, day: 17, hour: 9, minute: 0)
+        guard case let .date(endDate)? = recurrence.recurrence?.end else {
+            return XCTFail("Expected a date-based recurrence end")
+        }
+        XCTAssertDate(endDate, year: 2026, month: 9, day: 30, hour: nil, minute: nil)
+    }
+
+    func testRecurrenceTimeCanFollowItsEndClause() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let fields = QuickAddParser.parse(
+            "Review every Monday until Sep 30 at 9am",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(fields.title, "Review")
+        XCTAssertDate(fields.dueDate, year: 2026, month: 8, day: 17, hour: 9, minute: 0)
+    }
+
+    func testRejectsFiniteRecurrenceWhoseFinalOccurrenceCannotBeRepresented() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let input = "Archive every 100 years for 10000 occurrences"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
+
+        XCTAssertEqual(fields.title, input)
+        XCTAssertNil(fields.dueDate)
+        XCTAssertNil(fields.recurrence)
+    }
+
+    func testParsesMarkdownLinkDestinationWithoutCombiningURLs() {
+        let input = "Open [https://example.com/report](https://example.com/report)"
+
+        let fields = QuickAddParser.parse(input, calendar: calendar)
+
+        XCTAssertEqual(fields.title, "Open")
+        XCTAssertEqual(fields.url, URL(string: "https://example.com/report"))
+        XCTAssertToken(
+            in: fields,
+            originalText: input,
+            kind: .url,
+            equals: "[https://example.com/report](https://example.com/report)"
+        )
+    }
+
+    func testMarkdownURLIgnoresSentencePunctuationAndExtraClosingDelimiter() {
+        let inputs = [
+            "Open [report](https://example.com/report)?",
+            "Open [report](https://example.com/report))"
+        ]
+
+        for input in inputs {
+            let fields = QuickAddParser.parse(input, calendar: calendar)
+
+            XCTAssertEqual(fields.title, "Open")
+            XCTAssertEqual(fields.url, URL(string: "https://example.com/report"))
+        }
+    }
+
+    func testDSTGapTimeNormalizesOnceWithoutChangingARecurrence() throws {
+        var losAngelesCalendar = Calendar(identifier: .gregorian)
+        losAngelesCalendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let now = try XCTUnwrap(losAngelesCalendar.date(from: DateComponents(
+            calendar: losAngelesCalendar,
+            timeZone: losAngelesCalendar.timeZone,
+            year: 2027,
+            month: 3,
+            day: 13,
+            hour: 10,
+            minute: 0
+        )))
+        let oneOff = QuickAddParser.parse(
+            "Review tomorrow at 2:30am",
+            calendar: losAngelesCalendar,
+            now: now
+        )
+        let recurrence = QuickAddParser.parse(
+            "Review every day at 2:30am for 2 occurrences",
+            calendar: losAngelesCalendar,
+            now: now
+        )
+
+        XCTAssertDate(oneOff.dueDate, year: 2027, month: 3, day: 14, hour: 3, minute: 30)
+        XCTAssertDate(recurrence.dueDate, year: 2027, month: 3, day: 15, hour: 2, minute: 30)
+        let finalOccurrence = try XCTUnwrap(ReminderRecurrenceCalculator.finalOccurrenceDate(
+            startingAt: try XCTUnwrap(recurrence.dueDate),
+            recurrence: try XCTUnwrap(recurrence.recurrence),
+            occurrenceCount: 2
+        ))
+        let finalComponents = losAngelesCalendar.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: finalOccurrence
+        )
+        XCTAssertDate(finalComponents, year: 2027, month: 3, day: 16, hour: 2, minute: 30)
+    }
+
+    func testSentencePunctuationDoesNotBecomeMetadataValue() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let list = QuickAddParser.parse("Review #Work, tomorrow", calendar: calendar, now: now)
+        let tag = QuickAddParser.parse("Review @work, tomorrow", calendar: calendar, now: now)
+        let priority = QuickAddParser.parse("Review P1, tomorrow", calendar: calendar, now: now)
+
+        XCTAssertEqual(list.listName, "Work")
+        XCTAssertEqual(tag.tags, ["work"])
+        XCTAssertEqual(priority.priority, 1)
+    }
+
+    func testURLPreservesATrailingQuestionMarkInsideAQuery() {
+        let fields = QuickAddParser.parse(
+            "Review https://example.com/search?q=why?",
+            calendar: calendar
+        )
+
+        XCTAssertEqual(fields.title, "Review")
+        XCTAssertEqual(fields.url?.absoluteString, "https://example.com/search?q=why?")
+    }
+
+    func testSentencePunctuationDoesNotBreakReminderMetadata() throws {
+        let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
+        let recurrence = QuickAddParser.parse(
+            "Review metrics every Monday!",
+            calendar: calendar,
+            now: now
+        )
+        let earlyReminder = QuickAddParser.parse(
+            "Submit tomorrow at 10am remind 30m early!",
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(recurrence.title, "Review metrics")
+        XCTAssertEqual(
+            recurrence.recurrence,
+            ReminderRecurrence(frequency: .weekly, weekdays: [.monday])
+        )
+        XCTAssertEqual(earlyReminder.title, "Submit")
+        XCTAssertEqual(
+            earlyReminder.earlyReminder,
+            ReminderEarlyReminder(amount: 30, unit: .minutes)
+        )
+    }
+
+    func testCanSuppressRecognizedDateToken() throws {
         let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 13, hour: 9, minute: 15)))
         let input = "Dinner 6pm"
         let parsed = QuickAddParser.parse(input, calendar: calendar, now: now)
@@ -601,7 +1329,7 @@ final class QuickAddParserTests: XCTestCase {
             input,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: [
+            suppressedTokens: [
                 QuickAddSuppressedToken(
                     kind: token.kind,
                     range: token.range,

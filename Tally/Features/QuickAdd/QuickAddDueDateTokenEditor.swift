@@ -16,39 +16,33 @@ enum QuickAddTokenEditor {
         to input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) -> String {
         let fields = QuickAddParser.parse(
             input,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
-        let existingToken = fields.usedTokens.first { token in
-            token.kind == .date || token.kind == .time
-        }
-
         guard let selection else {
-            guard let existingToken,
-                  let range = Range(existingToken.range, in: input) else {
+            let tokensToRemove = fields.usedTokens.filter(\.isScheduleToken)
+
+            guard !tokensToRemove.isEmpty else {
                 return normalized(input)
             }
 
-            var updated = input
-            updated.removeSubrange(range)
-            return normalized(updated)
+            return normalized(removingTokens(tokensToRemove, from: input))
         }
 
         let replacement = dueDateToken(for: selection, calendar: calendar)
-
-        guard let existingToken,
-              let range = Range(existingToken.range, in: input) else {
-            return appendingToken(replacement, to: input, fields: fields)
-        }
-
-        var updated = input
-        updated.replaceSubrange(range, with: replacement)
-        return normalized(updated)
+        return replacingTokens(
+            in: input,
+            matching: \QuickAddToken.isDueDateToken,
+            with: replacement,
+            calendar: calendar,
+            now: now,
+            suppressedTokens: suppressedTokens
+        )
     }
 
     static func applyingList(
@@ -56,7 +50,7 @@ enum QuickAddTokenEditor {
         to input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) -> String {
         replacingTokens(
             in: input,
@@ -64,7 +58,7 @@ enum QuickAddTokenEditor {
             with: "#\(QuickAddListTokenCodec.encode(listTitle))",
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
     }
 
@@ -72,7 +66,7 @@ enum QuickAddTokenEditor {
         in input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) -> String {
         replacingTokens(
             in: input,
@@ -80,7 +74,7 @@ enum QuickAddTokenEditor {
             with: nil,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
     }
 
@@ -89,7 +83,7 @@ enum QuickAddTokenEditor {
         to input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) -> String {
         replacingTokens(
             in: input,
@@ -97,7 +91,7 @@ enum QuickAddTokenEditor {
             with: priorityToken(for: priority),
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
     }
 
@@ -105,13 +99,13 @@ enum QuickAddTokenEditor {
         in input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) -> QuickAddTextEdit {
         let fields = QuickAddParser.parse(
             input,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
         let pendingTagTokens = pendingTagTokens(in: fields, input: input)
 
@@ -130,13 +124,13 @@ enum QuickAddTokenEditor {
         in input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) -> QuickAddTextEdit {
         let fields = QuickAddParser.parse(
             input,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
         let pendingTagTokens = pendingTagTokens(in: fields, input: input)
         let completedTagTokens = completedTagTokens(in: fields, input: input)
@@ -164,13 +158,13 @@ enum QuickAddTokenEditor {
         in input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) -> QuickAddTextEdit {
         let fields = QuickAddParser.parse(
             input,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
         let completedTagTokens = completedTagTokens(in: fields, input: input)
 
@@ -179,7 +173,7 @@ enum QuickAddTokenEditor {
                 in: input,
                 calendar: calendar,
                 now: now,
-                suppressedInferredTokens: suppressedInferredTokens
+                suppressedTokens: suppressedTokens
             )
         }
 
@@ -194,13 +188,13 @@ enum QuickAddTokenEditor {
         from input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) -> String {
         let fields = QuickAddParser.parse(
             input,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
         let completedTagTokens = completedTagTokens(in: fields, input: input)
 
@@ -236,13 +230,13 @@ enum QuickAddTokenEditor {
         with replacement: String?,
         calendar: Calendar,
         now: Date,
-        suppressedInferredTokens: [QuickAddSuppressedToken]
+        suppressedTokens: [QuickAddSuppressedToken]
     ) -> String {
         let fields = QuickAddParser.parse(
             input,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
         let matchingTokens = fields.usedTokens
             .filter(predicate)
@@ -431,20 +425,30 @@ enum QuickAddTokenEditor {
     }
 }
 
+private extension QuickAddToken {
+    var isDueDateToken: Bool {
+        kind == .date || kind == .time || kind == .recurrence
+    }
+
+    var isScheduleToken: Bool {
+        isDueDateToken || kind == .earlyReminder
+    }
+}
+
 enum QuickAddDueDateTokenEditor {
     static func applying(
         _ selection: QuickAddDueDateSelection?,
         to input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedInferredTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = []
     ) -> String {
         QuickAddTokenEditor.applyingDueDate(
             selection,
             to: input,
             calendar: calendar,
             now: now,
-            suppressedInferredTokens: suppressedInferredTokens
+            suppressedTokens: suppressedTokens
         )
     }
 

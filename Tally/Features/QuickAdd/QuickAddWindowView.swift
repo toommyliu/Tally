@@ -278,7 +278,11 @@ struct QuickAddWindowView: View {
         onSubmit(request)
     }
 
-    private func handleEscape() -> Bool {
+    private func handleEscape(selectedRange: NSRange) -> Bool {
+        if draft.keepTokenAsText(at: selectedRange) {
+            return true
+        }
+
         onCancel()
         return true
     }

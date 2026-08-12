@@ -69,6 +69,9 @@ final class QuickAddDraft: ObservableObject {
             listIdentifier: selectedIdentifier,
             listName: fields.listName,
             dueDate: fields.dueDate,
+            recurrence: nil,
+            earlyReminder: nil,
+            url: nil,
             priority: fields.priority
         )
     }

@@ -46,6 +46,8 @@
 		B20000000000000000000002 /* QuickAddWindowPositionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */; };
 		C30000000000000000000001 /* ReminderSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000101 /* ReminderSchedule.swift */; };
 		C30000000000000000000004 /* ReminderEventKitMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000104 /* ReminderEventKitMapper.swift */; };
+		D40000000000000000000001 /* ReminderKitBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000102 /* ReminderKitBridge.m */; };
+		D40000000000000000000002 /* ReminderKitMetadataWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000103 /* ReminderKitMetadataWriter.swift */; };
 		E50000000000000000000001 /* ReminderRecurrenceCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000101 /* ReminderRecurrenceCalculator.swift */; };
 		D1F71CB2302B73EE00C4F5F9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = D1F71CB1302B73EE00C4F5F9 /* AppIcon.icon */; };
 /* End PBXBuildFile section */
@@ -104,6 +106,10 @@
 		B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowPositionStoreTests.swift; sourceTree = "<group>"; };
 		C30000000000000000000101 /* ReminderSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderSchedule.swift; sourceTree = "<group>"; };
 		C30000000000000000000104 /* ReminderEventKitMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderEventKitMapper.swift; sourceTree = "<group>"; };
+		D40000000000000000000101 /* ReminderKitBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ReminderKitBridge.h; sourceTree = "<group>"; };
+		D40000000000000000000102 /* ReminderKitBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ReminderKitBridge.m; sourceTree = "<group>"; };
+		D40000000000000000000103 /* ReminderKitMetadataWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderKitMetadataWriter.swift; sourceTree = "<group>"; };
+		D40000000000000000000104 /* Tally-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Tally-Bridging-Header.h"; sourceTree = "<group>"; };
 		E50000000000000000000101 /* ReminderRecurrenceCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRecurrenceCalculator.swift; sourceTree = "<group>"; };
 		D1F71CB1302B73EE00C4F5F9 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -211,6 +217,9 @@
 				100000000000000000000106 /* ReminderStore.swift */,
 				C30000000000000000000104 /* ReminderEventKitMapper.swift */,
 				E50000000000000000000101 /* ReminderRecurrenceCalculator.swift */,
+				D40000000000000000000101 /* ReminderKitBridge.h */,
+				D40000000000000000000102 /* ReminderKitBridge.m */,
+				D40000000000000000000103 /* ReminderKitMetadataWriter.swift */,
 				100000000000000000000120 /* ReminderAccessController.swift */,
 				10000000000000000000010E /* HotKeyController.swift */,
 				100000000000000000000114 /* AppSettingsStore.swift */,
@@ -258,6 +267,7 @@
 			children = (
 				100000000000000000000107 /* Info.plist */,
 				100000000000000000000108 /* Tally.entitlements */,
+				D40000000000000000000104 /* Tally-Bridging-Header.h */,
 			);
 			path = Supporting;
 			sourceTree = "<group>";
@@ -382,6 +392,8 @@
 				100000000000000000000006 /* ReminderStore.swift in Sources */,
 				C30000000000000000000004 /* ReminderEventKitMapper.swift in Sources */,
 				E50000000000000000000001 /* ReminderRecurrenceCalculator.swift in Sources */,
+				D40000000000000000000001 /* ReminderKitBridge.m in Sources */,
+				D40000000000000000000002 /* ReminderKitMetadataWriter.swift in Sources */,
 				10000000000000000000001C /* ReminderAccessController.swift in Sources */,
 				100000000000000000000009 /* AppController.swift in Sources */,
 				10000000000000000000000A /* HotKeyController.swift in Sources */,
@@ -577,6 +589,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.app.tally;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "Tally/Supporting/Tally-Bridging-Header.h";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -603,6 +616,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.app.tally;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "Tally/Supporting/Tally-Bridging-Header.h";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};

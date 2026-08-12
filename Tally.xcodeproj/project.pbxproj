@@ -44,6 +44,9 @@
 		A10000000000000000000008 /* SettingsPanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000108 /* SettingsPanelPlacementTests.swift */; };
 		B20000000000000000000001 /* QuickAddWindowPositionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000101 /* QuickAddWindowPositionStore.swift */; };
 		B20000000000000000000002 /* QuickAddWindowPositionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */; };
+		C30000000000000000000001 /* ReminderSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000101 /* ReminderSchedule.swift */; };
+		C30000000000000000000004 /* ReminderEventKitMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000104 /* ReminderEventKitMapper.swift */; };
+		E50000000000000000000001 /* ReminderRecurrenceCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000101 /* ReminderRecurrenceCalculator.swift */; };
 		D1F71CB2302B73EE00C4F5F9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = D1F71CB1302B73EE00C4F5F9 /* AppIcon.icon */; };
 /* End PBXBuildFile section */
 
@@ -99,6 +102,9 @@
 		A10000000000000000000108 /* SettingsPanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelPlacementTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000101 /* QuickAddWindowPositionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowPositionStore.swift; sourceTree = "<group>"; };
 		B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowPositionStoreTests.swift; sourceTree = "<group>"; };
+		C30000000000000000000101 /* ReminderSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderSchedule.swift; sourceTree = "<group>"; };
+		C30000000000000000000104 /* ReminderEventKitMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderEventKitMapper.swift; sourceTree = "<group>"; };
+		E50000000000000000000101 /* ReminderRecurrenceCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRecurrenceCalculator.swift; sourceTree = "<group>"; };
 		D1F71CB1302B73EE00C4F5F9 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -192,6 +198,7 @@
 			children = (
 				100000000000000000000105 /* ReminderItem.swift */,
 				A10000000000000000000101 /* ReminderCreationRequest.swift */,
+				C30000000000000000000101 /* ReminderSchedule.swift */,
 				100000000000000000000111 /* ReminderFormatting.swift */,
 				100000000000000000000113 /* AppSettings.swift */,
 			);
@@ -202,6 +209,8 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000106 /* ReminderStore.swift */,
+				C30000000000000000000104 /* ReminderEventKitMapper.swift */,
+				E50000000000000000000101 /* ReminderRecurrenceCalculator.swift */,
 				100000000000000000000120 /* ReminderAccessController.swift */,
 				10000000000000000000010E /* HotKeyController.swift */,
 				100000000000000000000114 /* AppSettingsStore.swift */,
@@ -369,7 +378,10 @@
 				100000000000000000000018 /* QuickAddDueDateTokenEditor.swift in Sources */,
 				100000000000000000000019 /* DueDatePickerPopover.swift in Sources */,
 				100000000000000000000005 /* ReminderItem.swift in Sources */,
+				C30000000000000000000001 /* ReminderSchedule.swift in Sources */,
 				100000000000000000000006 /* ReminderStore.swift in Sources */,
+				C30000000000000000000004 /* ReminderEventKitMapper.swift in Sources */,
+				E50000000000000000000001 /* ReminderRecurrenceCalculator.swift in Sources */,
 				10000000000000000000001C /* ReminderAccessController.swift in Sources */,
 				100000000000000000000009 /* AppController.swift in Sources */,
 				10000000000000000000000A /* HotKeyController.swift in Sources */,

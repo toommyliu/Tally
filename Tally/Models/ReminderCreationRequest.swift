@@ -13,6 +13,9 @@ struct ReminderCreationRequest: Equatable {
     let listIdentifier: String?
     let listName: String?
     let dueDate: DateComponents?
+    let recurrence: ReminderRecurrence?
+    let earlyReminder: ReminderEarlyReminder?
+    let url: URL?
     let priority: Int
 
     var requiresSpecificList: Bool {

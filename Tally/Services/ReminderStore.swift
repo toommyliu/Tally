@@ -210,11 +210,7 @@ final class ReminderStore: ObservableObject {
         do {
             let calendar = try writableCalendar(for: request)
             let reminder = EKReminder(eventStore: eventStore)
-            reminder.title = request.title
-            reminder.calendar = calendar
-            reminder.priority = request.priority
-            reminder.dueDateComponents = request.dueDate
-            reminder.notes = request.combinedNotes
+            ReminderEventKitMapper.populate(reminder, from: request, calendar: calendar)
 
             try eventStore.save(reminder, commit: true)
             await reload()
@@ -245,6 +241,9 @@ final class ReminderStore: ObservableObject {
             listIdentifier: nil,
             listName: fields.listName,
             dueDate: fields.dueDate,
+            recurrence: nil,
+            earlyReminder: nil,
+            url: nil,
             priority: fields.priority
         ))
     }

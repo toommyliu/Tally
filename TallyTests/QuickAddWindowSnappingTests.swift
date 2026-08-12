@@ -260,3 +260,12 @@ final class QuickAddWindowSnappingTests: XCTestCase {
         )
     }
 }
+
+@MainActor
+final class QuickAddEscapeRoutingTests: XCTestCase {
+    func testEscapeDefersToTextEditorsBeforeClosingThePanel() {
+        XCTAssertTrue(QuickAddEscapeRouting.defersToFirstResponder(NSTextView()))
+        XCTAssertFalse(QuickAddEscapeRouting.defersToFirstResponder(NSButton()))
+        XCTAssertFalse(QuickAddEscapeRouting.defersToFirstResponder(nil))
+    }
+}

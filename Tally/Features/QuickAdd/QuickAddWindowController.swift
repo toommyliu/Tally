@@ -67,7 +67,9 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         #if DEBUG
-        guard !ProcessInfo.processInfo.arguments.contains("--ui-testing") else {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard !arguments.contains("--ui-testing"),
+              !arguments.contains("--keep-quick-add-open-on-resign") else {
             return
         }
         #endif
@@ -167,6 +169,10 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             if let eventWindow = event.window,
                eventWindow !== panel,
                eventWindow is NSPanel {
+                return event
+            }
+
+            if QuickAddEscapeRouting.defersToFirstResponder(panel.firstResponder) {
                 return event
             }
 
@@ -539,6 +545,13 @@ private extension NSRect {
     }
 }
 
+enum QuickAddEscapeRouting {
+    /// Text editors receive Escape first so they can dismiss token recognition.
+    static func defersToFirstResponder(_ firstResponder: NSResponder?) -> Bool {
+        firstResponder is NSTextView
+    }
+}
+
 private final class QuickAddPanel: NSPanel {
     private static let escapeKeyCode: UInt16 = 53
 
@@ -553,7 +566,8 @@ private final class QuickAddPanel: NSPanel {
     }
 
     override func sendEvent(_ event: NSEvent) {
-        if Self.isPlainEscape(event) {
+        if Self.isPlainEscape(event),
+           !QuickAddEscapeRouting.defersToFirstResponder(firstResponder) {
             requestClose()
             return
         }

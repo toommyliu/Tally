@@ -130,7 +130,7 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
     let tokens: [QuickAddToken]
     let placeholder: String
     let onSubmit: () -> Void
-    let onEscape: () -> Bool
+    let onEscape: (NSRange) -> Bool
     let onForwardTab: () -> Void
     let onBackwardTab: () -> Void
 
@@ -249,7 +249,7 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
             }
 
             if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-                return parent.onEscape()
+                return parent.onEscape(textView.selectedRange())
             }
 
             if commandSelector == #selector(NSResponder.insertTab(_:)) {

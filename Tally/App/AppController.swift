@@ -73,18 +73,25 @@ final class AppController: NSObject {
     }
 
     func showQuickAdd() {
+        // Capture before Tally activates so `main` still reflects the
+        // source app's focused window.
+        showQuickAdd(on: NSScreen.main)
+    }
+
+    private func showQuickAdd(on targetScreen: NSScreen?) {
         if settingsWindowController?.isPresented == true {
             settingsWindowController?.dismiss { [weak self] in
-                self?.quickAddWindowController?.show()
+                self?.quickAddWindowController?.show(on: targetScreen)
             }
         } else {
-            quickAddWindowController?.show()
+            quickAddWindowController?.show(on: targetScreen)
         }
     }
 
     func showQuickAddAfterMenuDismissal() {
+        let targetScreen = NSScreen.main
         performAfterMenuDismissal { [weak self] in
-            self?.showQuickAdd()
+            self?.showQuickAdd(on: targetScreen)
         }
     }
 

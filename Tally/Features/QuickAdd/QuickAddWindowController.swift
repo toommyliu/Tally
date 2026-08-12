@@ -13,22 +13,23 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
 
     private let reminderStore: ReminderStore
     private let settingsStore: AppSettingsStore
+    private let positionStore: QuickAddWindowPositionStore
     private var window: NSWindow?
     private var draft: QuickAddDraft?
     private var dragSession: QuickAddWindowDragSession?
     private var snapFeedbackGate = QuickAddSnapFeedbackGate()
     private var snapGuideWindow: NSWindow?
     private var startingWindowOrigin: NSPoint?
-    private var lastWindowOrigin: NSPoint?
     private var escapeKeyMonitor: Any?
 
     init(reminderStore: ReminderStore, settingsStore: AppSettingsStore) {
         self.reminderStore = reminderStore
         self.settingsStore = settingsStore
+        self.positionStore = settingsStore.quickAddWindowPositionStore
         super.init()
     }
 
-    func show() {
+    func show(on targetScreen: NSScreen?) {
         if window == nil {
             window = makeWindow()
         }
@@ -37,7 +38,7 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             return
         }
 
-        position(window, size: window.frame.size)
+        position(window, size: window.frame.size, on: targetScreen)
         window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         window.makeKey()
@@ -61,7 +62,6 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             return
         }
 
-        lastWindowOrigin = closingWindow.frame.origin
         resetWindow()
     }
 
@@ -209,25 +209,23 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func position(_ window: NSWindow, size: NSSize) {
-        let rememberedFrame = lastWindowOrigin.map { NSRect(origin: $0, size: size) }
-        let screen = rememberedFrame.flatMap(screenBestMatching)
+    private func position(
+        _ window: NSWindow,
+        size: NSSize,
+        on targetScreen: NSScreen?
+    ) {
+        let screen = targetScreen
             ?? screenContainingMouse()
             ?? NSScreen.main
 
-        guard let visibleFrame = screen?.visibleFrame else {
+        guard let screen else {
             window.setFrame(NSRect(origin: .zero, size: size), display: false)
             window.center()
             startingWindowOrigin = window.frame.origin
-
-            if let lastWindowOrigin {
-                window.setFrame(
-                    NSRect(origin: lastWindowOrigin, size: size),
-                    display: false
-                )
-            }
             return
         }
+
+        let visibleFrame = screen.visibleFrame
 
         let defaultOrigin = QuickAddWindowPlacement.defaultOrigin(
             windowSize: size,
@@ -235,13 +233,16 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         )
         startingWindowOrigin = defaultOrigin
 
-        let origin = lastWindowOrigin.flatMap { rememberedOrigin in
-            QuickAddWindowPlacement.restoredOrigin(
-                rememberedOrigin,
-                windowSize: size,
-                visibleFrame: visibleFrame
-            )
-        } ?? defaultOrigin
+        let origin = QuickAddDisplayIdentity.identifier(for: screen)
+            .flatMap { positionStore.offset(for: $0) }
+            .map { offset in
+                QuickAddWindowPlacement.origin(
+                    applying: offset,
+                    to: defaultOrigin,
+                    windowSize: size,
+                    visibleFrame: visibleFrame
+                )
+            } ?? defaultOrigin
 
         window.setFrame(NSRect(origin: origin, size: size), display: true)
     }
@@ -370,10 +371,48 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             return
         }
 
-        lastWindowOrigin = window?.frame.origin
+        persistWindowPositionAfterDrag()
         dragSession = nil
         snapFeedbackGate.reset()
         hideSnapGuide()
+    }
+
+    /// Persists a custom offset on the display where an explicit drag ended.
+    private func persistWindowPositionAfterDrag() {
+        guard let window,
+              let screen = window.screen ?? screenBestMatching(window.frame)
+        else {
+            return
+        }
+
+        let defaultOrigin = QuickAddWindowPlacement.defaultOrigin(
+            windowSize: window.frame.size,
+            visibleFrame: screen.visibleFrame
+        )
+        startingWindowOrigin = defaultOrigin
+
+        guard let displayIdentifier = QuickAddDisplayIdentity.identifier(
+            for: screen
+        ) else {
+            return
+        }
+
+        let alignedAxes = QuickAddSnapAlignment.axes(
+            origin: window.frame.origin,
+            targetOrigin: defaultOrigin
+        )
+        if alignedAxes == .all {
+            positionStore.removeOffset(for: displayIdentifier)
+            return
+        }
+
+        positionStore.setOffset(
+            QuickAddWindowPlacement.offset(
+                from: defaultOrigin,
+                to: window.frame.origin
+            ),
+            for: displayIdentifier
+        )
     }
 
     private func updateSnapGuide(

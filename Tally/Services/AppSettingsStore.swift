@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 final class AppSettingsStore: ObservableObject {
+    let quickAddWindowPositionStore: QuickAddWindowPositionStore
+
     @Published var quickAddShortcut: GlobalShortcut {
         didSet {
             Self.persist(quickAddShortcut, to: userDefaults, forKey: Keys.quickAddShortcut)
@@ -35,6 +37,9 @@ final class AppSettingsStore: ObservableObject {
     init(userDefaults: UserDefaults? = nil) {
         let userDefaults = userDefaults ?? Self.defaultUserDefaults()
         self.userDefaults = userDefaults
+        self.quickAddWindowPositionStore = QuickAddWindowPositionStore(
+            userDefaults: userDefaults
+        )
 
         self.quickAddShortcut = Self.loadShortcut(
             forKey: Keys.quickAddShortcut,

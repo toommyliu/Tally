@@ -17,36 +17,35 @@ final class QuickAddWindowSnappingTests: XCTestCase {
         XCTAssertEqual(origin.x + windowSize.width / 2, visibleFrame.midX, accuracy: 0.001)
     }
 
-    func testRestoresRememberedOriginWhenItRemainsVisible() {
-        let rememberedOrigin = NSPoint(x: 300, y: 500)
-
-        let restoredOrigin = QuickAddWindowPlacement.restoredOrigin(
-            rememberedOrigin,
+    func testAppliesSavedOffsetToTargetDisplayDefault() {
+        let origin = QuickAddWindowPlacement.origin(
+            applying: QuickAddWindowPositionOffset(x: -100, y: 40),
+            to: NSPoint(x: 400, y: 500),
             windowSize: windowSize,
             visibleFrame: visibleFrame
         )
 
-        XCTAssertEqual(restoredOrigin, rememberedOrigin)
+        XCTAssertEqual(origin, NSPoint(x: 300, y: 540))
     }
 
-    func testRestoredOriginIsClampedFullyInsideTheVisibleFrame() {
-        let restoredOrigin = QuickAddWindowPlacement.restoredOrigin(
-            NSPoint(x: -5, y: 900),
+    func testSavedOffsetIsClampedFullyInsideTheTargetDisplay() {
+        let origin = QuickAddWindowPlacement.origin(
+            applying: QuickAddWindowPositionOffset(x: -1_000, y: 1_000),
+            to: NSPoint(x: 400, y: 500),
             windowSize: windowSize,
             visibleFrame: visibleFrame
         )
 
-        XCTAssertEqual(restoredOrigin, NSPoint(x: 10, y: 749))
+        XCTAssertEqual(origin, NSPoint(x: 10, y: 749))
     }
 
-    func testRejectsRememberedOriginFromADisconnectedScreen() {
-        let restoredOrigin = QuickAddWindowPlacement.restoredOrigin(
-            NSPoint(x: 2000, y: 1200),
-            windowSize: windowSize,
-            visibleFrame: visibleFrame
+    func testCalculatesOffsetFromTargetDisplayDefault() {
+        let offset = QuickAddWindowPlacement.offset(
+            from: NSPoint(x: 400, y: 500),
+            to: NSPoint(x: 300, y: 540)
         )
 
-        XCTAssertNil(restoredOrigin)
+        XCTAssertEqual(offset, QuickAddWindowPositionOffset(x: -100, y: 40))
     }
 
     func testDragHandleOnlyOccupiesTheTopPadding() {

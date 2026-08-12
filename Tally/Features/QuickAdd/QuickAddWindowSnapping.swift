@@ -286,21 +286,32 @@ enum QuickAddWindowPlacement {
         )
     }
 
-    static func restoredOrigin(
-        _ rememberedOrigin: NSPoint,
+    /// Applies one display's saved displacement and keeps the panel fully visible.
+    static func origin(
+        applying offset: QuickAddWindowPositionOffset,
+        to defaultOrigin: NSPoint,
         windowSize: NSSize,
         visibleFrame: NSRect
-    ) -> NSPoint? {
-        let rememberedFrame = NSRect(origin: rememberedOrigin, size: windowSize)
-        guard visibleFrame.intersects(rememberedFrame) else {
-            return nil
-        }
-
-        return clampedOrigin(
-            rememberedOrigin,
+    ) -> NSPoint {
+        clampedOrigin(
+            NSPoint(
+                x: defaultOrigin.x + offset.x,
+                y: defaultOrigin.y + offset.y
+            ),
             windowSize: windowSize,
             visibleFrame: visibleFrame,
             edgeInset: edgeInset
+        )
+    }
+
+    /// Calculates the display-local override represented by a dragged origin.
+    static func offset(
+        from defaultOrigin: NSPoint,
+        to origin: NSPoint
+    ) -> QuickAddWindowPositionOffset {
+        QuickAddWindowPositionOffset(
+            x: origin.x - defaultOrigin.x,
+            y: origin.y - defaultOrigin.y
         )
     }
 

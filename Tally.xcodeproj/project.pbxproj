@@ -42,6 +42,8 @@
 		A10000000000000000000006 /* ReminderCreationRequestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000106 /* ReminderCreationRequestTests.swift */; };
 		A10000000000000000000007 /* QuickAddDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000107 /* QuickAddDraftTests.swift */; };
 		A10000000000000000000008 /* SettingsPanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000108 /* SettingsPanelPlacementTests.swift */; };
+		B20000000000000000000001 /* QuickAddWindowPositionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000101 /* QuickAddWindowPositionStore.swift */; };
+		B20000000000000000000002 /* QuickAddWindowPositionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */; };
 		D1F71CB2302B73EE00C4F5F9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = D1F71CB1302B73EE00C4F5F9 /* AppIcon.icon */; };
 /* End PBXBuildFile section */
 
@@ -95,6 +97,8 @@
 		A10000000000000000000106 /* ReminderCreationRequestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCreationRequestTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000107 /* QuickAddDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddDraftTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000108 /* SettingsPanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanelPlacementTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000101 /* QuickAddWindowPositionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowPositionStore.swift; sourceTree = "<group>"; };
+		B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowPositionStoreTests.swift; sourceTree = "<group>"; };
 		D1F71CB1302B73EE00C4F5F9 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -176,6 +180,7 @@
 				100000000000000000000112 /* HighlightedQuickAddTextField.swift */,
 				A10000000000000000000103 /* QuickAddMetadataViews.swift */,
 				100000000000000000000122 /* QuickAddWindowSnapping.swift */,
+				B20000000000000000000101 /* QuickAddWindowPositionStore.swift */,
 				10000000000000000000010F /* QuickAddWindowController.swift */,
 				100000000000000000000110 /* QuickAddWindowView.swift */,
 			);
@@ -225,6 +230,7 @@
 				10000000000000000000011F /* ReminderFormattingTests.swift */,
 				100000000000000000000121 /* ReminderAccessControllerTests.swift */,
 				100000000000000000000123 /* QuickAddWindowSnappingTests.swift */,
+				B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */,
 			);
 			path = TallyTests;
 			sourceTree = "<group>";
@@ -369,6 +375,7 @@
 				10000000000000000000000A /* HotKeyController.swift in Sources */,
 				10000000000000000000000B /* QuickAddWindowController.swift in Sources */,
 				10000000000000000000001E /* QuickAddWindowSnapping.swift in Sources */,
+				B20000000000000000000001 /* QuickAddWindowPositionStore.swift in Sources */,
 				10000000000000000000000C /* QuickAddWindowView.swift in Sources */,
 				10000000000000000000000D /* ReminderFormatting.swift in Sources */,
 				10000000000000000000000E /* HighlightedQuickAddTextField.swift in Sources */,
@@ -399,6 +406,7 @@
 				10000000000000000000001B /* ReminderFormattingTests.swift in Sources */,
 				10000000000000000000001D /* ReminderAccessControllerTests.swift in Sources */,
 				10000000000000000000001F /* QuickAddWindowSnappingTests.swift in Sources */,
+				B20000000000000000000002 /* QuickAddWindowPositionStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

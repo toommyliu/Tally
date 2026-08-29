@@ -100,9 +100,11 @@ final class MenuBarController: NSObject {
         }
 
         statusView.update(count: count)
-        statusItem.button?.toolTip = count == 1
+        let statusDescription = count == 1
             ? "Tally — 1 open reminder"
             : "Tally — \(count) open reminders"
+        statusItem.button?.toolTip = statusDescription
+        statusItem.button?.setAccessibilityLabel(statusDescription)
     }
 
     private func configureStatusButton() {
@@ -379,10 +381,10 @@ private final class MenuBarStatusView: NSView {
     }
 
     private func configureImageView() {
-        imageView.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "Tally")
-        imageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
-            .applying(NSImage.SymbolConfiguration(hierarchicalColor: .labelColor))
+        imageView.image = .tallyMenuCheckmark
         imageView.imageScaling = .scaleProportionallyDown
+        imageView.contentTintColor = .labelColor
+        imageView.setAccessibilityElement(false)
         imageView.translatesAutoresizingMaskIntoConstraints = true
         addSubview(imageView)
     }

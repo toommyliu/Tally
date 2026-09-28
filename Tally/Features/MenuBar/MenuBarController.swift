@@ -55,7 +55,7 @@ final class MenuBarController: NSObject {
             }
             .store(in: &cancellables)
 
-        reminderStore.$accessState
+        reminderStore.access.$state
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.refreshMenu()
@@ -144,12 +144,12 @@ final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
-        if reminderStore.accessState != .authorized {
-            let accessItem = NSMenuItem(title: reminderStore.accessState.menuTitle, action: nil, keyEquivalent: "")
+        if reminderStore.access.state != .authorized {
+            let accessItem = NSMenuItem(title: reminderStore.access.state.menuTitle, action: nil, keyEquivalent: "")
             accessItem.isEnabled = false
             menu.addItem(accessItem)
 
-            if let actionTitle = reminderStore.accessState.menuActionTitle {
+            if let actionTitle = reminderStore.access.state.menuActionTitle {
                 let accessActionItem = NSMenuItem(
                     title: actionTitle,
                     action: #selector(performRemindersAccessAction),
@@ -296,11 +296,9 @@ final class MenuBarController: NSObject {
     }
 }
 
-private extension ReminderStore.AccessState {
+private extension EventKitAccessState {
     var menuTitle: String {
         switch self {
-        case .unknown:
-            return "Checking Reminders access..."
         case .notDetermined:
             return "Tally needs Reminders access"
         case .requesting:

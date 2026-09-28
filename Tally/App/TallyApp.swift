@@ -21,7 +21,8 @@ struct TallyApp: App {
 
 @MainActor
 final class TallyAppDelegate: NSObject, NSApplicationDelegate {
-    let reminderStore = ReminderStore()
+    let eventKit = EventKitService()
+    lazy var reminderStore = ReminderStore(eventKit: eventKit)
     let settingsStore = AppSettingsStore()
     let launchAtLoginController = LaunchAtLoginController()
     let appController = AppController()

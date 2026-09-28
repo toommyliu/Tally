@@ -5,7 +5,7 @@ import Foundation
 @MainActor
 final class ReminderStore: ObservableObject {
     @Published private(set) var reminders: [ReminderItem] = []
-    @Published private(set) var reminderLists: [ReminderListInfo] = []
+    @Published private(set) var reminderLists: [CalendarDestinationInfo] = []
     @Published private(set) var isLoading = false
     @Published private(set) var isSaving = false
     @Published var errorMessage: String?
@@ -45,9 +45,9 @@ final class ReminderStore: ObservableObject {
 
         if isUITesting {
             reminderLists = [
-                ReminderListInfo(id: "ui-inbox", title: "Inbox"),
-                ReminderListInfo(id: "ui-personal", title: "Personal"),
-                ReminderListInfo(id: "ui-work", title: "Work")
+                CalendarDestinationInfo(id: "ui-inbox", title: "Inbox"),
+                CalendarDestinationInfo(id: "ui-personal", title: "Personal"),
+                CalendarDestinationInfo(id: "ui-work", title: "Work")
             ]
             reminders = [
                 ReminderItem(
@@ -300,7 +300,7 @@ final class ReminderStore: ObservableObject {
         return (try? writableCalendar(for: request))?.title ?? activeListTitle
     }
 
-    func preferredList(for identifier: String?) -> ReminderListInfo? {
+    func preferredList(for identifier: String?) -> CalendarDestinationInfo? {
         guard let identifier else {
             return reminderLists.first { $0.title == activeListTitle }
         }
@@ -320,10 +320,10 @@ final class ReminderStore: ObservableObject {
         throw ReminderStoreError.noWritableList
     }
 
-    private func writableReminderLists() -> [ReminderListInfo] {
+    private func writableReminderLists() -> [CalendarDestinationInfo] {
         eventKit
             .writableCalendars(for: .reminder)
-            .map { ReminderListInfo(id: $0.calendarIdentifier, title: $0.title) }
+            .map { CalendarDestinationInfo(id: $0.calendarIdentifier, title: $0.title) }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
@@ -372,7 +372,7 @@ final class ReminderStore: ObservableObject {
         return true
     }
 
-    private func uiTestingList(for request: ReminderCreationRequest) -> ReminderListInfo? {
+    private func uiTestingList(for request: ReminderCreationRequest) -> CalendarDestinationInfo? {
         CalendarDestinationResolver.resolve(
             request.destination,
             in: reminderLists,

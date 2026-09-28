@@ -2,6 +2,7 @@ import SwiftUI
 
 enum QuickAddFocusTarget: Hashable {
     case dueDate
+    case eventLength
     case list
     case priority
     case tag
@@ -16,6 +17,7 @@ struct QuickAddWindowView: View {
     private static let notesBaseHeight: CGFloat = 24
 
     @EnvironmentObject private var reminderStore: ReminderStore
+    @EnvironmentObject private var calendarEventStore: CalendarEventStore
     @ObservedObject var draft: QuickAddDraft
     @FocusState private var focusedControl: QuickAddFocusTarget?
     @State private var activePopover: QuickAddPopoverKind?
@@ -23,7 +25,8 @@ struct QuickAddWindowView: View {
     @State private var notesEditorHeight = notesBaseHeight
 
     let onCancel: () -> Void
-    let onSubmit: (ReminderCreationRequest) -> Void
+    let onSubmit: (QuickAddSubmission) -> Void
+    let onCalendarAccessAction: () -> Void
     let onPreferredHeightChange: (CGFloat) -> Void
 
     var body: some View {
@@ -67,12 +70,15 @@ struct QuickAddWindowView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 0) {
+            QuickAddModePicker(mode: draft.mode, onSelect: selectMode)
+                .padding(.bottom, 10)
+
             HighlightedQuickAddTextField(
                 text: $draft.text,
                 selectedRangeRequest: $draft.selectedRangeRequest,
                 measuredHeight: $titleEditorHeight,
                 tokens: draft.fields.usedTokens,
-                placeholder: "New Reminder",
+                placeholder: draft.mode == .event ? "New Event" : "New Reminder",
                 onSubmit: submit,
                 onEscape: handleEscape,
                 onForwardTab: draft.focusNotes,
@@ -97,23 +103,35 @@ struct QuickAddWindowView: View {
             .frame(height: notesEditorHeight)
             .padding(.top, 7)
 
-            QuickAddMetadataBar(
-                fields: draft.fields,
-                fallbackList: fallbackList,
-                lists: reminderStore.reminderLists,
-                reminderDayCounts: reminderDayCounts,
-                activePopover: $activePopover,
-                focusedControl: $focusedControl,
-                onFocusTitle: draft.focusTitleAtEnd,
-                onApplyDueDate: draft.applyDueDate,
-                onSelectList: draft.selectList,
-                onUseDefaultList: draft.useDefaultList,
-                onApplyPriority: draft.applyPriority,
-                onAddTag: draft.addTagEntry,
-                onEditTag: draft.editTag,
-                onRemoveTag: draft.removeTag
-            )
-            .padding(.top, 11)
+            if needsCalendarAccess {
+                QuickAddCalendarAccessBanner(
+                    accessState: calendarEventStore.accessState,
+                    onAction: onCalendarAccessAction
+                )
+                .padding(.top, 11)
+            } else {
+                QuickAddMetadataBar(
+                    mode: draft.mode,
+                    fields: draft.fields,
+                    fallbackList: fallbackList,
+                    lists: draft.mode == .event
+                        ? calendarEventStore.calendars
+                        : reminderStore.reminderLists,
+                    reminderDayCounts: draft.mode == .event ? [:] : reminderDayCounts,
+                    activePopover: $activePopover,
+                    focusedControl: $focusedControl,
+                    onFocusTitle: draft.focusTitleAtEnd,
+                    onApplyDueDate: draft.applyDueDate,
+                    onApplyEventLength: draft.applyEventLength,
+                    onSelectList: draft.selectList,
+                    onUseDefaultList: draft.useDefaultList,
+                    onApplyPriority: draft.applyPriority,
+                    onAddTag: draft.addTagEntry,
+                    onEditTag: draft.editTag,
+                    onRemoveTag: draft.removeTag
+                )
+                .padding(.top, 11)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
@@ -126,7 +144,7 @@ struct QuickAddWindowView: View {
         if let errorMessage = draft.errorMessage {
             Label(errorMessage, systemImage: "exclamationmark.circle.fill")
                 .foregroundStyle(.red)
-                .accessibilityLabel("Could not add reminder: \(errorMessage)")
+                .accessibilityLabel("Could not add \(draft.mode == .event ? "event" : "reminder"): \(errorMessage)")
                 .font(.system(size: 11.5))
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, minHeight: 16, alignment: .leading)
@@ -164,12 +182,12 @@ struct QuickAddWindowView: View {
 
             Button(action: submit) {
                 HStack(spacing: 6) {
-                    if reminderStore.isSaving {
+                    if isSaving {
                         ProgressView()
                             .controlSize(.mini)
                     }
 
-                    Text(reminderStore.isSaving ? "Adding…" : "Add Reminder")
+                    Text(submitTitle)
                 }
             }
             .buttonStyle(QuickAddFooterButtonStyle(kind: .primary))
@@ -177,10 +195,10 @@ struct QuickAddWindowView: View {
                 $focusedControl,
                 equals: .submit,
                 shape: Capsule(),
-                isEnabled: draft.canSubmit && !reminderStore.isSaving
+                isEnabled: canSubmit
             )
             .quickAddKeyboardActivation(submit)
-            .disabled(!draft.canSubmit || reminderStore.isSaving)
+            .disabled(!canSubmit)
             .keyboardShortcut(.return, modifiers: .command)
         }
         .padding(.horizontal, 16)
@@ -205,7 +223,7 @@ struct QuickAddWindowView: View {
             togglePopover(.help)
         }
         .popover(isPresented: presentationBinding(for: .help), arrowEdge: .bottom) {
-            QuickAddHelpPopover()
+            QuickAddHelpPopover(mode: draft.mode)
                 .onExitCommand {
                     activePopover = nil
                 }
@@ -242,7 +260,31 @@ struct QuickAddWindowView: View {
         draft.errorMessage != nil || draft.confirmationMessage != nil
     }
 
-    private var fallbackList: ReminderListInfo {
+    private var isSaving: Bool {
+        draft.mode == .event ? calendarEventStore.isSaving : reminderStore.isSaving
+    }
+
+    private var needsCalendarAccess: Bool {
+        draft.mode == .event && calendarEventStore.accessState != .authorized
+    }
+
+    private var canSubmit: Bool {
+        draft.canSubmit && !isSaving && !needsCalendarAccess
+    }
+
+    private var submitTitle: String {
+        if isSaving {
+            return "Adding…"
+        }
+
+        return draft.mode == .event ? "Add Event" : "Add Reminder"
+    }
+
+    private var fallbackList: CalendarDestinationInfo {
+        if draft.mode == .event {
+            return CalendarDestinationInfo(id: "fallback", title: calendarEventStore.defaultCalendarTitle)
+        }
+
         if let preferredList = reminderStore.preferredList(
             for: draft.defaultListIdentifier
         ) {
@@ -250,10 +292,10 @@ struct QuickAddWindowView: View {
         }
 
         if draft.defaultListIdentifier != nil {
-            return ReminderListInfo(id: "unavailable", title: "Unavailable list")
+            return CalendarDestinationInfo(id: "unavailable", title: "Unavailable list")
         }
 
-        return ReminderListInfo(id: "fallback", title: reminderStore.activeListTitle)
+        return CalendarDestinationInfo(id: "fallback", title: reminderStore.activeListTitle)
     }
 
     private var reminderDayCounts: [Date: Int] {
@@ -269,13 +311,24 @@ struct QuickAddWindowView: View {
     }
 
     private func submit() {
-        guard !reminderStore.isSaving,
-              let request = draft.makeRequest()
-        else {
+        guard canSubmit, let submission = draft.makeSubmission() else {
             return
         }
 
-        onSubmit(request)
+        onSubmit(submission)
+    }
+
+    private func selectMode(_ mode: QuickAddMode) {
+        guard draft.mode != mode else {
+            return
+        }
+
+        activePopover = nil
+        draft.mode = mode
+
+        if mode == .event, calendarEventStore.accessState == .notDetermined {
+            onCalendarAccessAction()
+        }
     }
 
     private func handleEscape(selectedRange: NSRange) -> Bool {
@@ -306,6 +359,105 @@ struct QuickAddWindowView: View {
                 activePopover = isPresented ? kind : nil
             }
         )
+    }
+}
+
+/// Switches between creating a reminder and an event. ⌘1 and ⌘2 always pick
+/// the same mode, so the shortcut never depends on the current state.
+private struct QuickAddModePicker: View {
+    let mode: QuickAddMode
+    let onSelect: (QuickAddMode) -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            segment(.reminder, title: "Reminder", systemName: "checklist", key: "1")
+            segment(.event, title: "Event", systemName: "calendar", key: "2")
+        }
+        .padding(2)
+        .background(Color.primary.opacity(0.06), in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Type")
+    }
+
+    private func segment(
+        _ value: QuickAddMode,
+        title: String,
+        systemName: String,
+        key: KeyEquivalent
+    ) -> some View {
+        let isSelected = mode == value
+
+        return Button {
+            onSelect(value)
+        } label: {
+            Label(title, systemImage: systemName)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+                .padding(.horizontal, 10)
+                .frame(height: 22)
+                .background(
+                    isSelected ? Color(nsColor: .controlBackgroundColor) : Color.clear,
+                    in: Capsule()
+                )
+                .shadow(color: .black.opacity(isSelected ? 0.12 : 0), radius: 1, y: 0.5)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .keyboardShortcut(key, modifiers: .command)
+        .help("\(title) (⌘\(key.character))")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// Shown in Event mode until Tally has full Calendar access.
+private struct QuickAddCalendarAccessBanner: View {
+    let accessState: EventKitAccessState
+    let onAction: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "calendar.badge.exclamationmark")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(TallyPalette.date)
+
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            if let actionTitle {
+                Button(actionTitle, action: onAction)
+                    .controlSize(.small)
+            }
+        }
+        .frame(height: 30)
+    }
+
+    private var message: String {
+        switch accessState {
+        case .notDetermined:
+            return "Tally needs Calendar access to add events."
+        case .requesting:
+            return "Waiting for Calendar access…"
+        case .denied:
+            return "Tally needs full Calendar access to add events."
+        case .authorized:
+            return ""
+        }
+    }
+
+    private var actionTitle: String? {
+        switch accessState.availableAction {
+        case .request:
+            return "Allow Access…"
+        case .openSystemSettings:
+            return "Open System Settings…"
+        case .none:
+            return nil
+        }
     }
 }
 

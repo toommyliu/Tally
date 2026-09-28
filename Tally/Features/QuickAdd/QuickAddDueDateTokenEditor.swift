@@ -5,6 +5,12 @@ struct QuickAddDueDateSelection: Equatable {
     var includesTime: Bool
 }
 
+/// How long a Quick Add event should last, as picked from the duration menu.
+enum QuickAddEventLength: Hashable {
+    case duration(QuickAddEventDuration)
+    case allDay
+}
+
 struct QuickAddTextEdit: Equatable {
     var text: String
     var selectedRange: NSRange?
@@ -16,10 +22,12 @@ enum QuickAddTokenEditor {
         to input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = [],
+        mode: QuickAddMode = .reminder
     ) -> String {
         let fields = QuickAddParser.parse(
             input,
+            mode: mode,
             calendar: calendar,
             now: now,
             suppressedTokens: suppressedTokens
@@ -34,14 +42,20 @@ enum QuickAddTokenEditor {
             return normalized(removingTokens(tokensToRemove, from: input))
         }
 
-        let replacement = dueDateToken(for: selection, calendar: calendar)
+        var replacement = dueDateToken(for: selection, calendar: calendar)
+        if selection.includesTime,
+           fields.usedTokens.contains(where: { $0.kind == .timeRange }),
+           let minutes = fields.eventTiming?.durationMinutes {
+            replacement += " \(QuickAddEventDuration.minutes(minutes).token)"
+        }
         return replacingTokens(
             in: input,
             matching: \QuickAddToken.isDueDateToken,
             with: replacement,
             calendar: calendar,
             now: now,
-            suppressedTokens: suppressedTokens
+            suppressedTokens: suppressedTokens,
+            mode: mode
         )
     }
 
@@ -50,7 +64,8 @@ enum QuickAddTokenEditor {
         to input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = [],
+        mode: QuickAddMode = .reminder
     ) -> String {
         replacingTokens(
             in: input,
@@ -58,7 +73,8 @@ enum QuickAddTokenEditor {
             with: "#\(QuickAddListTokenCodec.encode(listTitle))",
             calendar: calendar,
             now: now,
-            suppressedTokens: suppressedTokens
+            suppressedTokens: suppressedTokens,
+            mode: mode
         )
     }
 
@@ -66,7 +82,8 @@ enum QuickAddTokenEditor {
         in input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = [],
+        mode: QuickAddMode = .reminder
     ) -> String {
         replacingTokens(
             in: input,
@@ -74,7 +91,8 @@ enum QuickAddTokenEditor {
             with: nil,
             calendar: calendar,
             now: now,
-            suppressedTokens: suppressedTokens
+            suppressedTokens: suppressedTokens,
+            mode: mode
         )
     }
 
@@ -83,7 +101,8 @@ enum QuickAddTokenEditor {
         to input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = [],
+        mode: QuickAddMode = .reminder
     ) -> String {
         replacingTokens(
             in: input,
@@ -91,18 +110,83 @@ enum QuickAddTokenEditor {
             with: priorityToken(for: priority),
             calendar: calendar,
             now: now,
+            suppressedTokens: suppressedTokens,
+            mode: mode
+        )
+    }
+
+    static func applyingEventLength(
+        _ length: QuickAddEventLength,
+        to input: String,
+        calendar: Calendar = .current,
+        now: Date = Date(),
+        suppressedTokens: [QuickAddSuppressedToken] = []
+    ) -> String {
+        let fields = QuickAddParser.parse(
+            input,
+            mode: .event,
+            calendar: calendar,
+            now: now,
             suppressedTokens: suppressedTokens
         )
+        let lengthTokens = fields.usedTokens
+            .filter { $0.kind == .timeRange || $0.kind == .duration }
+            .sorted { $0.range.location < $1.range.location }
+
+        switch length {
+        case .allDay:
+            guard let start = fields.eventTiming?.start,
+                  let startDate = calendar.date(from: start) else {
+                return normalized(input)
+            }
+
+            var tokensToRemove = fields.usedTokens.filter {
+                $0.isScheduleToken && $0.kind != .recurrence
+            }
+            if let range = fields.recurrenceTimeRange {
+                tokensToRemove.append(QuickAddToken(kind: .time, range: range))
+            }
+            let replacement = fields.recurrence == nil ? dueDateToken(
+                for: QuickAddDueDateSelection(date: startDate, includesTime: false),
+                calendar: calendar
+            ) : nil
+
+            return replacingTokens(
+                tokensToRemove,
+                in: input,
+                with: replacement,
+                fields: fields
+            )
+        case let .duration(duration):
+            var replacement = duration.token
+            if lengthTokens.contains(where: { $0.kind == .timeRange }),
+               let start = fields.eventTiming?.start,
+               let hour = start.hour {
+                replacement = "\(timeToken(hour: hour, minute: start.minute ?? 0)) \(replacement)"
+            }
+
+            return replacingTokens(
+                in: input,
+                matching: { $0.kind == .timeRange || $0.kind == .duration },
+                with: replacement,
+                calendar: calendar,
+                now: now,
+                suppressedTokens: suppressedTokens,
+                mode: .event
+            )
+        }
     }
 
     static func addingTagEntry(
         in input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = [],
+        mode: QuickAddMode = .reminder
     ) -> QuickAddTextEdit {
         let fields = QuickAddParser.parse(
             input,
+            mode: mode,
             calendar: calendar,
             now: now,
             suppressedTokens: suppressedTokens
@@ -124,10 +208,12 @@ enum QuickAddTokenEditor {
         in input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = [],
+        mode: QuickAddMode = .reminder
     ) -> QuickAddTextEdit {
         let fields = QuickAddParser.parse(
             input,
+            mode: mode,
             calendar: calendar,
             now: now,
             suppressedTokens: suppressedTokens
@@ -158,10 +244,12 @@ enum QuickAddTokenEditor {
         in input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = [],
+        mode: QuickAddMode = .reminder
     ) -> QuickAddTextEdit {
         let fields = QuickAddParser.parse(
             input,
+            mode: mode,
             calendar: calendar,
             now: now,
             suppressedTokens: suppressedTokens
@@ -173,7 +261,8 @@ enum QuickAddTokenEditor {
                 in: input,
                 calendar: calendar,
                 now: now,
-                suppressedTokens: suppressedTokens
+                suppressedTokens: suppressedTokens,
+                mode: mode
             )
         }
 
@@ -188,10 +277,12 @@ enum QuickAddTokenEditor {
         from input: String,
         calendar: Calendar = .current,
         now: Date = Date(),
-        suppressedTokens: [QuickAddSuppressedToken] = []
+        suppressedTokens: [QuickAddSuppressedToken] = [],
+        mode: QuickAddMode = .reminder
     ) -> String {
         let fields = QuickAddParser.parse(
             input,
+            mode: mode,
             calendar: calendar,
             now: now,
             suppressedTokens: suppressedTokens
@@ -230,19 +321,26 @@ enum QuickAddTokenEditor {
         with replacement: String?,
         calendar: Calendar,
         now: Date,
-        suppressedTokens: [QuickAddSuppressedToken]
+        suppressedTokens: [QuickAddSuppressedToken],
+        mode: QuickAddMode
     ) -> String {
         let fields = QuickAddParser.parse(
             input,
+            mode: mode,
             calendar: calendar,
             now: now,
             suppressedTokens: suppressedTokens
         )
-        let matchingTokens = fields.usedTokens
-            .filter(predicate)
-            .sorted { $0.range.location < $1.range.location }
+        return replacingTokens(fields.usedTokens.filter(predicate), in: input, with: replacement, fields: fields)
+    }
 
-        guard let firstToken = matchingTokens.first else {
+    private static func replacingTokens(
+        _ tokens: [QuickAddToken],
+        in input: String,
+        with replacement: String?,
+        fields: QuickAddFields
+    ) -> String {
+        guard let firstToken = tokens.min(by: { $0.range.location < $1.range.location }) else {
             guard let replacement else {
                 return normalized(input)
             }
@@ -250,7 +348,7 @@ enum QuickAddTokenEditor {
             return appendingToken(replacement, to: input, fields: fields)
         }
 
-        var updated = removingTokens(matchingTokens, from: input)
+        var updated = removingTokens(tokens, from: input)
 
         if let replacement,
            let insertionIndex = stringIndex(atUTF16Offset: firstToken.range.location, in: updated) {
@@ -427,11 +525,11 @@ enum QuickAddTokenEditor {
 
 private extension QuickAddToken {
     var isDueDateToken: Bool {
-        kind == .date || kind == .time || kind == .recurrence
+        kind == .date || kind == .time || kind == .timeRange || kind == .recurrence
     }
 
     var isScheduleToken: Bool {
-        isDueDateToken || kind == .earlyReminder
+        isDueDateToken || kind == .earlyReminder || kind == .duration
     }
 }
 

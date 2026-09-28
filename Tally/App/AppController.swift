@@ -13,6 +13,7 @@ final class AppController: NSObject {
 
     func configure(
         reminderStore: ReminderStore,
+        calendarEventStore: CalendarEventStore,
         settingsStore: AppSettingsStore,
         launchAtLoginController: LaunchAtLoginController
     ) {
@@ -22,6 +23,7 @@ final class AppController: NSObject {
 
         let quickAddWindowController = QuickAddWindowController(
             reminderStore: reminderStore,
+            calendarEventStore: calendarEventStore,
             settingsStore: settingsStore
         )
         let menuBarController = MenuBarController(
@@ -31,6 +33,7 @@ final class AppController: NSObject {
         )
         let settingsWindowController = SettingsWindowController(
             reminderStore: reminderStore,
+            calendarEventStore: calendarEventStore,
             settingsStore: settingsStore,
             launchAtLoginController: launchAtLoginController
         )

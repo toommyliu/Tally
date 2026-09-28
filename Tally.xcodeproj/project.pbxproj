@@ -56,6 +56,14 @@
 		F60000000000000000000002 /* EventKitEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000102 /* EventKitEntity.swift */; };
 		F60000000000000000000003 /* CalendarDestinationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000103 /* CalendarDestinationResolver.swift */; };
 		F60000000000000000000004 /* CalendarDestinationResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000104 /* CalendarDestinationResolverTests.swift */; };
+		A70000000000000000000001 /* QuickAddEventTimingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000101 /* QuickAddEventTimingParser.swift */; };
+		A70000000000000000000002 /* CalendarEventCreationRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000102 /* CalendarEventCreationRequest.swift */; };
+		A70000000000000000000003 /* CalendarEventFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000103 /* CalendarEventFormatting.swift */; };
+		A70000000000000000000004 /* EventKitRecurrenceRuleMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000104 /* EventKitRecurrenceRuleMapper.swift */; };
+		A70000000000000000000005 /* CalendarEventEventKitMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000105 /* CalendarEventEventKitMapper.swift */; };
+		A70000000000000000000006 /* CalendarEventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000106 /* CalendarEventStore.swift */; };
+		B80000000000000000000001 /* QuickAddEventParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80000000000000000000101 /* QuickAddEventParserTests.swift */; };
+		B80000000000000000000002 /* CalendarEventEventKitMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80000000000000000000102 /* CalendarEventEventKitMapperTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -124,6 +132,14 @@
 		F60000000000000000000102 /* EventKitEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitEntity.swift; sourceTree = "<group>"; };
 		F60000000000000000000103 /* CalendarDestinationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDestinationResolver.swift; sourceTree = "<group>"; };
 		F60000000000000000000104 /* CalendarDestinationResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDestinationResolverTests.swift; sourceTree = "<group>"; };
+		A70000000000000000000101 /* QuickAddEventTimingParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEventTimingParser.swift; sourceTree = "<group>"; };
+		A70000000000000000000102 /* CalendarEventCreationRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventCreationRequest.swift; sourceTree = "<group>"; };
+		A70000000000000000000103 /* CalendarEventFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventFormatting.swift; sourceTree = "<group>"; };
+		A70000000000000000000104 /* EventKitRecurrenceRuleMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitRecurrenceRuleMapper.swift; sourceTree = "<group>"; };
+		A70000000000000000000105 /* CalendarEventEventKitMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventEventKitMapper.swift; sourceTree = "<group>"; };
+		A70000000000000000000106 /* CalendarEventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventStore.swift; sourceTree = "<group>"; };
+		B80000000000000000000101 /* QuickAddEventParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEventParserTests.swift; sourceTree = "<group>"; };
+		B80000000000000000000102 /* CalendarEventEventKitMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventEventKitMapperTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -208,6 +224,7 @@
 				100000000000000000000122 /* QuickAddWindowSnapping.swift */,
 				B20000000000000000000101 /* QuickAddWindowPositionStore.swift */,
 				10000000000000000000010F /* QuickAddWindowController.swift */,
+				A70000000000000000000101 /* QuickAddEventTimingParser.swift */,
 				100000000000000000000110 /* QuickAddWindowView.swift */,
 			);
 			path = QuickAdd;
@@ -221,6 +238,8 @@
 				C30000000000000000000101 /* ReminderSchedule.swift */,
 				100000000000000000000111 /* ReminderFormatting.swift */,
 				100000000000000000000113 /* AppSettings.swift */,
+				A70000000000000000000103 /* CalendarEventFormatting.swift */,
+				A70000000000000000000102 /* CalendarEventCreationRequest.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -239,6 +258,9 @@
 				F60000000000000000000103 /* CalendarDestinationResolver.swift */,
 				100000000000000000000120 /* EventKitAccessController.swift */,
 				10000000000000000000010E /* HotKeyController.swift */,
+				A70000000000000000000106 /* CalendarEventStore.swift */,
+				A70000000000000000000105 /* CalendarEventEventKitMapper.swift */,
+				A70000000000000000000104 /* EventKitRecurrenceRuleMapper.swift */,
 				100000000000000000000114 /* AppSettingsStore.swift */,
 				100000000000000000000115 /* LaunchAtLoginController.swift */,
 			);
@@ -267,6 +289,8 @@
 				F60000000000000000000104 /* CalendarDestinationResolverTests.swift */,
 				100000000000000000000123 /* QuickAddWindowSnappingTests.swift */,
 				B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */,
+				B80000000000000000000102 /* CalendarEventEventKitMapperTests.swift */,
+				B80000000000000000000101 /* QuickAddEventParserTests.swift */,
 			);
 			path = TallyTests;
 			sourceTree = "<group>";
@@ -438,6 +462,12 @@
 				A10000000000000000000003 /* QuickAddMetadataViews.swift in Sources */,
 				A10000000000000000000004 /* SettingsViewModel.swift in Sources */,
 				A10000000000000000000005 /* SettingsWindowController.swift in Sources */,
+				A70000000000000000000001 /* QuickAddEventTimingParser.swift in Sources */,
+				A70000000000000000000002 /* CalendarEventCreationRequest.swift in Sources */,
+				A70000000000000000000003 /* CalendarEventFormatting.swift in Sources */,
+				A70000000000000000000004 /* EventKitRecurrenceRuleMapper.swift in Sources */,
+				A70000000000000000000005 /* CalendarEventEventKitMapper.swift in Sources */,
+				A70000000000000000000006 /* CalendarEventStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -455,6 +485,8 @@
 				F60000000000000000000004 /* CalendarDestinationResolverTests.swift in Sources */,
 				10000000000000000000001F /* QuickAddWindowSnappingTests.swift in Sources */,
 				B20000000000000000000002 /* QuickAddWindowPositionStoreTests.swift in Sources */,
+				B80000000000000000000001 /* QuickAddEventParserTests.swift in Sources */,
+				B80000000000000000000002 /* CalendarEventEventKitMapperTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

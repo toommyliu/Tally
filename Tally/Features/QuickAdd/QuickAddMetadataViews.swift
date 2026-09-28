@@ -2,6 +2,7 @@ import SwiftUI
 
 enum QuickAddPopoverKind: Hashable {
     case dueDate
+    case eventLength
     case list
     case priority
     case tags
@@ -9,15 +10,17 @@ enum QuickAddPopoverKind: Hashable {
 }
 
 struct QuickAddMetadataBar: View {
+    let mode: QuickAddMode
     let fields: QuickAddFields
-    let fallbackList: ReminderListInfo
-    let lists: [ReminderListInfo]
+    let fallbackList: CalendarDestinationInfo
+    let lists: [CalendarDestinationInfo]
     let reminderDayCounts: [Date: Int]
     @Binding var activePopover: QuickAddPopoverKind?
     let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
     let onFocusTitle: () -> Void
     let onApplyDueDate: (QuickAddDueDateSelection?) -> Void
-    let onSelectList: (ReminderListInfo) -> Void
+    let onApplyEventLength: (QuickAddEventLength) -> Void
+    let onSelectList: (CalendarDestinationInfo) -> Void
     let onUseDefaultList: () -> Void
     let onApplyPriority: (Int) -> Void
     let onAddTag: () -> Void
@@ -30,14 +33,30 @@ struct QuickAddMetadataBar: View {
                 QuickAddDateButton(
                     isPresented: presentationBinding(for: .dueDate),
                     dueDate: fields.dueDate,
+                    title: dateTitle,
+                    isActive: fields.dueDate != nil,
                     reminderDayCounts: reminderDayCounts,
                     focusedControl: focusedControl,
                     onFocusTitle: onFocusTitle,
                     onApply: onApplyDueDate
                 )
 
+                if mode == .event, let timing = fields.eventTiming {
+                    QuickAddEventLengthButton(
+                        isPresented: presentationBinding(for: .eventLength),
+                        timing: timing,
+                        isActive: fields.usedTokens.contains {
+                            $0.kind == .duration || $0.kind == .timeRange
+                        },
+                        focusedControl: focusedControl,
+                        onFocusTitle: onFocusTitle,
+                        onSelect: onApplyEventLength
+                    )
+                }
+
                 QuickAddListButton(
                     isPresented: presentationBinding(for: .list),
+                    destination: mode == .event ? .calendar : .reminderList,
                     selectedName: fields.listName,
                     fallbackList: fallbackList,
                     lists: lists,
@@ -47,13 +66,15 @@ struct QuickAddMetadataBar: View {
                     onUseDefault: onUseDefaultList
                 )
 
-                QuickAddPriorityButton(
-                    isPresented: presentationBinding(for: .priority),
-                    priority: fields.priority,
-                    focusedControl: focusedControl,
-                    onFocusTitle: onFocusTitle,
-                    onSelect: onApplyPriority
-                )
+                if mode == .reminder {
+                    QuickAddPriorityButton(
+                        isPresented: presentationBinding(for: .priority),
+                        priority: fields.priority,
+                        focusedControl: focusedControl,
+                        onFocusTitle: onFocusTitle,
+                        onSelect: onApplyPriority
+                    )
+                }
 
                 QuickAddTagButton(
                     isPresented: presentationBinding(for: .tags),
@@ -70,6 +91,14 @@ struct QuickAddMetadataBar: View {
         .frame(height: 30)
     }
 
+    private var dateTitle: String {
+        if mode == .event, let timing = fields.eventTiming {
+            return timing.shortDisplayTitle
+        }
+
+        return fields.dueDate?.shortDisplayTitle ?? "Date"
+    }
+
     private func presentationBinding(for kind: QuickAddPopoverKind) -> Binding<Bool> {
         Binding(
             get: { activePopover == kind },
@@ -84,6 +113,8 @@ private struct QuickAddDateButton: View {
     @State private var didCompleteSelection = false
     @Binding var isPresented: Bool
     let dueDate: DateComponents?
+    let title: String
+    let isActive: Bool
     let reminderDayCounts: [Date: Int]
     let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
     let onFocusTitle: () -> Void
@@ -95,9 +126,9 @@ private struct QuickAddDateButton: View {
         } label: {
             QuickAddMetadataChip(
                 systemName: "calendar",
-                title: dueDate?.shortDisplayTitle ?? "Date",
+                title: title,
                 tint: TallyPalette.date,
-                isActive: dueDate != nil,
+                isActive: isActive,
                 showsChevron: true
             )
         }
@@ -132,19 +163,107 @@ private struct QuickAddDateButton: View {
             using: focusedControl,
             onSelection: onFocusTitle
         )
-        .accessibilityLabel("Due date")
+        .accessibilityLabel("Date")
+        .accessibilityValue(title)
+    }
+}
+
+private struct QuickAddEventLengthButton: View {
+    @State private var didCompleteSelection = false
+    @Binding var isPresented: Bool
+    let timing: CalendarEventTiming
+    let isActive: Bool
+    let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
+    let onFocusTitle: () -> Void
+    let onSelect: (QuickAddEventLength) -> Void
+
+    var body: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            QuickAddMetadataChip(
+                systemName: timing.isAllDay ? "sun.max" : "clock",
+                durationMinutes: timing.isAllDay ? nil : timing.durationMinutes,
+                title: timing.lengthDisplayTitle,
+                tint: TallyPalette.date,
+                isActive: isActive,
+                showsChevron: true
+            )
+        }
+        .buttonStyle(.plain)
+        .quickAddFocus(
+            focusedControl,
+            equals: .eventLength,
+            shape: RoundedRectangle(cornerRadius: 7, style: .continuous)
+        )
+        .quickAddKeyboardActivation {
+            isPresented.toggle()
+        }
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            QuickAddEventLengthPopover(timing: timing) { length in
+                didCompleteSelection = true
+                onSelect(length)
+                isPresented = false
+            }
+            .onExitCommand {
+                isPresented = false
+            }
+        }
+        .restoreQuickAddMetadataFocus(
+            when: isPresented,
+            didCompleteSelection: $didCompleteSelection,
+            to: .eventLength,
+            using: focusedControl,
+            onSelection: onFocusTitle
+        )
+        .accessibilityLabel("Event length")
+        .accessibilityValue(timing.lengthDisplayTitle)
+    }
+}
+
+/// Where a list chip saves to, which changes its icon and wording.
+enum QuickAddDestinationKind {
+    case reminderList
+    case calendar
+
+    var systemName: String {
+        switch self {
+        case .reminderList:
+            return "tray"
+        case .calendar:
+            return "calendar.badge.clock"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .reminderList:
+            return "Reminder list"
+        case .calendar:
+            return "Calendar"
+        }
+    }
+
+    var emptyMessage: String {
+        switch self {
+        case .reminderList:
+            return "No writable lists"
+        case .calendar:
+            return "No writable calendars"
+        }
     }
 }
 
 private struct QuickAddListButton: View {
     @State private var didCompleteSelection = false
     @Binding var isPresented: Bool
+    let destination: QuickAddDestinationKind
     let selectedName: String?
-    let fallbackList: ReminderListInfo
-    let lists: [ReminderListInfo]
+    let fallbackList: CalendarDestinationInfo
+    let lists: [CalendarDestinationInfo]
     let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
     let onFocusTitle: () -> Void
-    let onSelect: (ReminderListInfo) -> Void
+    let onSelect: (CalendarDestinationInfo) -> Void
     let onUseDefault: () -> Void
 
     var body: some View {
@@ -152,7 +271,7 @@ private struct QuickAddListButton: View {
             isPresented.toggle()
         } label: {
             QuickAddMetadataChip(
-                systemName: "tray",
+                systemName: destination.systemName,
                 title: selectedName ?? fallbackList.title,
                 tint: TallyPalette.list,
                 isActive: selectedName != nil,
@@ -170,6 +289,7 @@ private struct QuickAddListButton: View {
         }
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             QuickAddListPopover(
+                destination: destination,
                 selectedName: selectedName,
                 fallbackList: fallbackList,
                 lists: lists,
@@ -195,7 +315,7 @@ private struct QuickAddListButton: View {
             using: focusedControl,
             onSelection: onFocusTitle
         )
-        .accessibilityLabel("Reminder list")
+        .accessibilityLabel(destination.accessibilityLabel)
         .accessibilityValue(selectedName ?? fallbackList.title)
     }
 }
@@ -324,6 +444,8 @@ private struct QuickAddMetadataChip: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let systemName: String
+    /// Draws a dial filled to this length instead of the symbol.
+    var durationMinutes: Int? = nil
     let title: String
     let tint: Color
     let isActive: Bool
@@ -331,9 +453,8 @@ private struct QuickAddMetadataChip: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: systemName)
+            QuickAddRowIcon(systemName: systemName, durationMinutes: durationMinutes)
                 .font(.system(size: 11.5, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
 
             Text(title)
                 .lineLimit(1)
@@ -366,11 +487,12 @@ private struct QuickAddMetadataChip: View {
 private struct QuickAddListPopover: View {
     @FocusState private var focusedItem: FocusTarget?
 
+    let destination: QuickAddDestinationKind
     let selectedName: String?
-    let fallbackList: ReminderListInfo
-    let lists: [ReminderListInfo]
+    let fallbackList: CalendarDestinationInfo
+    let lists: [CalendarDestinationInfo]
     let onUseDefault: () -> Void
-    let onSelect: (ReminderListInfo) -> Void
+    let onSelect: (CalendarDestinationInfo) -> Void
 
     private enum FocusTarget: Hashable {
         case useDefault
@@ -393,7 +515,7 @@ private struct QuickAddListPopover: View {
             Divider().padding(.vertical, 3)
 
             if lists.isEmpty {
-                Text("No writable lists")
+                Text(destination.emptyMessage)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(9)
@@ -403,8 +525,9 @@ private struct QuickAddListPopover: View {
                         onSelect(list)
                     } label: {
                         QuickAddPopoverRow(
-                            systemName: "tray",
+                            systemName: destination.systemName,
                             title: list.title,
+                            subtitle: list.sourceTitle,
                             tint: TallyPalette.list,
                             isSelected: selectedName?.localizedCaseInsensitiveCompare(list.title) == .orderedSame
                         )
@@ -461,6 +584,81 @@ private struct QuickAddListPopover: View {
             targets: focusTargets,
             forward: forward
         )
+    }
+}
+
+private struct QuickAddEventLengthPopover: View {
+    @FocusState private var focusedOption: QuickAddEventLength?
+
+    let timing: CalendarEventTiming
+    let onSelect: (QuickAddEventLength) -> Void
+
+    private static let durations: [QuickAddEventDuration] = [
+        .minutes(15), .minutes(30), .minutes(45), .minutes(60), .minutes(90), .minutes(120)
+    ]
+
+    private var options: [QuickAddEventLength] {
+        Self.durations.map(QuickAddEventLength.duration) + [.allDay]
+    }
+
+    /// Lengths in minutes need a start time, so all-day events only offer all-day.
+    private var availableOptions: [QuickAddEventLength] {
+        timing.isAllDay ? [.allDay] : options
+    }
+
+    var body: some View {
+        QuickAddPopoverPanel(width: 210) {
+            ForEach(options, id: \.self) { option in
+                Button {
+                    onSelect(option)
+                } label: {
+                    QuickAddPopoverRow(
+                        systemName: option == .allDay ? "sun.max" : "clock",
+                        durationMinutes: option.minutes,
+                        title: option.displayTitle,
+                        tint: TallyPalette.date,
+                        isSelected: option == timing.selectedLength
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!availableOptions.contains(option))
+                .opacity(availableOptions.contains(option) ? 1 : 0.4)
+                .quickAddPopoverFocus($focusedOption, equals: option)
+            }
+
+            if timing.isAllDay {
+                Text("Add a time to set a length.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+            }
+        }
+        .onKeyPress(keys: [.tab]) { keyPress in
+            focusedOption = nextQuickAddPopoverFocus(
+                current: focusedOption,
+                initial: initialFocus,
+                targets: availableOptions,
+                forward: !keyPress.modifiers.contains(.shift)
+            )
+            return .handled
+        }
+        .onKeyPress(keys: [.space, .return]) { _ in
+            guard let focusedOption, availableOptions.contains(focusedOption) else {
+                return .ignored
+            }
+
+            onSelect(focusedOption)
+            return .handled
+        }
+        .task {
+            focusedOption = initialFocus
+        }
+    }
+
+    private var initialFocus: QuickAddEventLength {
+        timing.selectedLength.flatMap { availableOptions.contains($0) ? $0 : nil }
+            ?? availableOptions[0]
     }
 }
 
@@ -667,6 +865,8 @@ private struct QuickAddPopoverRow: View {
     @State private var isHovering = false
 
     let systemName: String
+    /// Draws a dial filled to this length instead of the symbol.
+    var durationMinutes: Int? = nil
     let title: String
     var subtitle: String? = nil
     let tint: Color
@@ -674,9 +874,8 @@ private struct QuickAddPopoverRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: systemName)
+            QuickAddRowIcon(systemName: systemName, durationMinutes: durationMinutes)
                 .font(.system(size: 12, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(tint)
                 .frame(width: 16)
 
@@ -713,7 +912,89 @@ private struct QuickAddPopoverRow: View {
     }
 }
 
+/// An SF Symbol, or a duration dial when a length is given.
+private struct QuickAddRowIcon: View {
+    let systemName: String
+    let durationMinutes: Int?
+
+    var body: some View {
+        if let durationMinutes {
+            QuickAddDurationDial(minutes: durationMinutes)
+        } else {
+            Image(systemName: systemName)
+                .symbolRenderingMode(.hierarchical)
+        }
+    }
+}
+
+/// A clock face swept like a clock hand: the first hour fills the dial, and a
+/// second hour fills the outer ring, so 15 min is a quarter and 1 hr 30 min is
+/// a full dial with half a ring.
+struct QuickAddDurationDial: View {
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 12
+
+    let minutes: Int
+
+    private var firstHour: Double {
+        min(max(Double(minutes), 0), 60) / 60
+    }
+
+    private var secondHour: Double {
+        min(max(Double(minutes) - 60, 0), 60) / 60
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(lineWidth: 1.1)
+                .opacity(secondHour > 0 ? 0.35 : 1)
+
+            if secondHour > 0 {
+                Circle()
+                    .trim(from: 0, to: secondHour)
+                    .stroke(style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+
+            QuickAddDialSweep(fraction: firstHour)
+                .padding(2.4)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A pie slice starting at 12 o'clock and sweeping clockwise.
+private struct QuickAddDialSweep: Shape {
+    let fraction: Double
+
+    func path(in rect: CGRect) -> Path {
+        guard fraction > 0 else {
+            return Path()
+        }
+
+        guard fraction < 1 else {
+            return Path(ellipseIn: rect)
+        }
+
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        var path = Path()
+        path.move(to: center)
+        path.addArc(
+            center: center,
+            radius: min(rect.width, rect.height) / 2,
+            startAngle: .degrees(-90),
+            endAngle: .degrees(-90 + 360 * fraction),
+            clockwise: false
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
 struct QuickAddHelpPopover: View {
+    let mode: QuickAddMode
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Quick Add")
@@ -727,10 +1008,18 @@ struct QuickAddHelpPopover: View {
                     title: "Date & Time",
                     examples: "today 5 PM · next Friday"
                 )
+                if mode == .event {
+                    helpRow(
+                        icon: "clock",
+                        tint: TallyPalette.date,
+                        title: "Time",
+                        examples: "2-3pm · 2pm to 4pm · for 45m"
+                    )
+                }
                 helpRow(
-                    icon: "tray",
+                    icon: mode == .event ? "calendar.badge.clock" : "tray",
                     tint: TallyPalette.list,
-                    title: "List",
+                    title: mode == .event ? "Calendar" : "List",
                     examples: "#Work"
                 )
                 helpRow(
@@ -739,12 +1028,14 @@ struct QuickAddHelpPopover: View {
                     title: "Tags",
                     examples: "@follow-up"
                 )
-                helpRow(
-                    icon: "flag",
-                    tint: TallyPalette.priority,
-                    title: "Priority",
-                    examples: "P1 High · P2 Medium · P3 Low"
-                )
+                if mode == .reminder {
+                    helpRow(
+                        icon: "flag",
+                        tint: TallyPalette.priority,
+                        title: "Priority",
+                        examples: "P1 High · P2 Medium · P3 Low"
+                    )
+                }
                 helpRow(
                     icon: "text.alignleft",
                     tint: .secondary,
@@ -764,11 +1055,12 @@ struct QuickAddHelpPopover: View {
 
             HStack(spacing: 16) {
                 keyboardHint(key: "Return", description: "Add")
+                keyboardHint(key: "⌘1 ⌘2", description: "Reminder / Event")
                 keyboardHint(key: "Esc", description: "Keep text / close")
             }
         }
         .padding(14)
-        .frame(width: 336, alignment: .leading)
+        .frame(width: 400, alignment: .leading)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 

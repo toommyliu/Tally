@@ -42,9 +42,9 @@ final class ReminderCreationRequestTests: XCTestCase {
             end: .occurrenceCount(6)
         )
 
-        let rule = try XCTUnwrap(ReminderEventKitMapper.recurrenceRule(
+        let rule = try XCTUnwrap(EventKitRecurrenceRuleMapper.rule(
             for: recurrence,
-            startingAt: start
+            convertingOccurrenceCountFrom: start
         ))
         let endDate = try XCTUnwrap(rule.recurrenceEnd?.endDate)
         let endComponents = calendar.dateComponents([.year, .month, .day], from: endDate)
@@ -73,9 +73,9 @@ final class ReminderCreationRequestTests: XCTestCase {
             end: .occurrenceCount(6)
         )
 
-        let rule = try XCTUnwrap(ReminderEventKitMapper.recurrenceRule(
+        let rule = try XCTUnwrap(EventKitRecurrenceRuleMapper.rule(
             for: recurrence,
-            startingAt: start
+            convertingOccurrenceCountFrom: start
         ))
         let endDate = try XCTUnwrap(rule.recurrenceEnd?.endDate)
         let endComponents = calendar.dateComponents([.year, .month, .day], from: endDate)
@@ -100,7 +100,7 @@ final class ReminderCreationRequestTests: XCTestCase {
             end: .date(components)
         )
 
-        let rule = try XCTUnwrap(ReminderEventKitMapper.recurrenceRule(for: recurrence))
+        let rule = try XCTUnwrap(EventKitRecurrenceRuleMapper.rule(for: recurrence))
         let endDate = try XCTUnwrap(rule.recurrenceEnd?.endDate)
         let mapped = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
@@ -121,7 +121,7 @@ final class ReminderCreationRequestTests: XCTestCase {
             interval: ReminderRecurrence.maximumInterval + 1
         )
 
-        XCTAssertNil(ReminderEventKitMapper.recurrenceRule(for: recurrence))
+        XCTAssertNil(EventKitRecurrenceRuleMapper.rule(for: recurrence))
     }
 
     func testEventKitRecurrenceMappingRejectsUnrepresentableFiniteEnd() throws {
@@ -140,9 +140,9 @@ final class ReminderCreationRequestTests: XCTestCase {
             end: .occurrenceCount(10_000)
         )
 
-        XCTAssertNil(ReminderEventKitMapper.recurrenceRule(
+        XCTAssertNil(EventKitRecurrenceRuleMapper.rule(
             for: recurrence,
-            startingAt: start
+            convertingOccurrenceCountFrom: start
         ))
     }
 

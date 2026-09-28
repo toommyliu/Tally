@@ -4,6 +4,7 @@ import Foundation
 struct QuickAddScannedToken {
     let text: String
     let range: NSRange
+    var eventTiming: QuickAddEventTimingToken? = nil
 }
 
 /// A parsed wall-clock time used by both one-off and recurring schedule parsing.

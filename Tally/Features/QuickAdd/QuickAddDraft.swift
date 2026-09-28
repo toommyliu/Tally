@@ -1,7 +1,25 @@
 import Foundation
 
+enum QuickAddSubmission: Equatable {
+    case reminder(ReminderCreationRequest)
+    case event(CalendarEventCreationRequest)
+}
+
 @MainActor
 final class QuickAddDraft: ObservableObject {
+    /// Switching keeps the typed text and reads it again for the new mode.
+    @Published var mode: QuickAddMode = .reminder {
+        didSet {
+            guard mode != oldValue else {
+                return
+            }
+
+            // A picked reminder list isn't a calendar, so only the typed name carries over.
+            selectedList = nil
+            clearTransientFeedback()
+        }
+    }
+
     @Published private(set) var suppressedTokens: [QuickAddSuppressedToken] = []
 
     @Published var text = "" {
@@ -28,7 +46,7 @@ final class QuickAddDraft: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var confirmationMessage: String?
 
-    private var selectedList: ReminderListInfo?
+    private var selectedList: CalendarDestinationInfo?
     private let settingsStore: AppSettingsStore
 
     init(settingsStore: AppSettingsStore) {
@@ -37,35 +55,32 @@ final class QuickAddDraft: ObservableObject {
     }
 
     var fields: QuickAddFields {
-        QuickAddParser.parse(text, suppressedTokens: suppressedTokens)
+        QuickAddParser.parse(text, mode: mode, suppressedTokens: suppressedTokens)
     }
 
     var canSubmit: Bool {
-        !fields.title.isEmpty
-    }
-
-    var defaultListIdentifier: String? {
-        settingsStore.defaultListIdentifier
-    }
-
-    func makeRequest() -> ReminderCreationRequest? {
         let fields = fields
+        return !fields.title.isEmpty && (mode == .reminder || fields.eventTiming != nil)
+    }
+
+    /// The configured default reminder list. Events always use the system default calendar.
+    var defaultListIdentifier: String? {
+        mode == .reminder ? settingsStore.defaultListIdentifier : nil
+    }
+
+    func makeSubmission() -> QuickAddSubmission? {
+        switch mode {
+        case .reminder:
+            return makeReminderRequest().map(QuickAddSubmission.reminder)
+        case .event:
+            return makeEventRequest().map(QuickAddSubmission.event)
+        }
+    }
+
+    func makeReminderRequest() -> ReminderCreationRequest? {
+        let fields = QuickAddParser.parse(text, mode: .reminder, suppressedTokens: suppressedTokens)
         guard !fields.title.isEmpty else {
             return nil
-        }
-
-        let selectedIdentifier: String?
-        if let listName = fields.listName,
-           let selectedList,
-           selectedList.title.compare(
-            listName,
-            options: [.caseInsensitive, .diacriticInsensitive]
-           ) == .orderedSame {
-            selectedIdentifier = selectedList.id
-        } else if fields.listName == nil {
-            selectedIdentifier = settingsStore.defaultListIdentifier
-        } else {
-            selectedIdentifier = nil
         }
 
         return ReminderCreationRequest(
@@ -73,7 +88,7 @@ final class QuickAddDraft: ObservableObject {
             userNotes: notes,
             inlineNotes: fields.inlineNotes,
             tags: fields.tags,
-            listIdentifier: selectedIdentifier,
+            listIdentifier: selectedDestinationIdentifier(for: fields),
             listName: fields.listName,
             dueDate: fields.dueDate,
             recurrence: fields.recurrence,
@@ -83,21 +98,52 @@ final class QuickAddDraft: ObservableObject {
         )
     }
 
+    func makeEventRequest() -> CalendarEventCreationRequest? {
+        let fields = QuickAddParser.parse(text, mode: .event, suppressedTokens: suppressedTokens)
+        guard !fields.title.isEmpty, let timing = fields.eventTiming else {
+            return nil
+        }
+
+        return CalendarEventCreationRequest(
+            title: fields.title,
+            userNotes: notes,
+            inlineNotes: fields.inlineNotes,
+            tags: fields.tags,
+            calendarIdentifier: selectedDestinationIdentifier(for: fields),
+            calendarName: fields.listName,
+            timing: timing,
+            recurrence: fields.recurrence,
+            alert: fields.earlyReminder,
+            url: fields.url
+        )
+    }
+
     func applyDueDate(_ selection: QuickAddDueDateSelection?) {
         let updatedText = QuickAddTokenEditor.applyingDueDate(
             selection,
+            to: text,
+            suppressedTokens: suppressedTokens,
+            mode: mode
+        )
+        applyProgrammaticTextEdit(updatedText)
+    }
+
+    func applyEventLength(_ length: QuickAddEventLength) {
+        let updatedText = QuickAddTokenEditor.applyingEventLength(
+            length,
             to: text,
             suppressedTokens: suppressedTokens
         )
         applyProgrammaticTextEdit(updatedText)
     }
 
-    func selectList(_ list: ReminderListInfo) {
+    func selectList(_ list: CalendarDestinationInfo) {
         selectedList = list
         let updatedText = QuickAddTokenEditor.applyingList(
             list.title,
             to: text,
-            suppressedTokens: suppressedTokens
+            suppressedTokens: suppressedTokens,
+            mode: mode
         )
         applyProgrammaticTextEdit(updatedText)
     }
@@ -106,7 +152,8 @@ final class QuickAddDraft: ObservableObject {
         selectedList = nil
         let updatedText = QuickAddTokenEditor.clearingList(
             in: text,
-            suppressedTokens: suppressedTokens
+            suppressedTokens: suppressedTokens,
+            mode: mode
         )
         applyProgrammaticTextEdit(updatedText)
     }
@@ -115,7 +162,8 @@ final class QuickAddDraft: ObservableObject {
         let updatedText = QuickAddTokenEditor.applyingPriority(
             priority,
             to: text,
-            suppressedTokens: suppressedTokens
+            suppressedTokens: suppressedTokens,
+            mode: mode
         )
         applyProgrammaticTextEdit(updatedText)
     }
@@ -123,7 +171,8 @@ final class QuickAddDraft: ObservableObject {
     func addTagEntry() {
         let edit = QuickAddTokenEditor.addingTagEntry(
             in: text,
-            suppressedTokens: suppressedTokens
+            suppressedTokens: suppressedTokens,
+            mode: mode
         )
         applyProgrammaticTextEdit(edit.text)
         selectedRangeRequest = edit.selectedRange
@@ -133,7 +182,8 @@ final class QuickAddDraft: ObservableObject {
         let edit = QuickAddTokenEditor.editingTag(
             at: index,
             in: text,
-            suppressedTokens: suppressedTokens
+            suppressedTokens: suppressedTokens,
+            mode: mode
         )
         applyProgrammaticTextEdit(edit.text)
         selectedRangeRequest = edit.selectedRange
@@ -143,7 +193,8 @@ final class QuickAddDraft: ObservableObject {
         let updatedText = QuickAddTokenEditor.removingTag(
             at: index,
             from: text,
-            suppressedTokens: suppressedTokens
+            suppressedTokens: suppressedTokens,
+            mode: mode
         )
         applyProgrammaticTextEdit(updatedText)
     }
@@ -177,6 +228,21 @@ final class QuickAddDraft: ObservableObject {
     func reportSaveFailure(_ message: String) {
         confirmationMessage = nil
         errorMessage = message
+    }
+
+    /// A list or calendar picked from the menu wins over a same-named one, so
+    /// duplicate names across accounts still save where the user chose.
+    private func selectedDestinationIdentifier(for fields: QuickAddFields) -> String? {
+        if let listName = fields.listName,
+           let selectedList,
+           selectedList.title.compare(
+            listName,
+            options: [.caseInsensitive, .diacriticInsensitive]
+           ) == .orderedSame {
+            return selectedList.id
+        }
+
+        return fields.listName == nil ? defaultListIdentifier : nil
     }
 
     func didSave(to listTitle: String) {

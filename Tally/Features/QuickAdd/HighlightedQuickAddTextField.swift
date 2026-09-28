@@ -195,7 +195,7 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
 
     private func attributes(for kind: QuickAddToken.Kind) -> [NSAttributedString.Key: Any] {
         let color: NSColor = switch kind {
-        case .date, .time, .recurrence, .earlyReminder:
+        case .date, .time, .timeRange, .duration, .recurrence, .earlyReminder:
             .systemBlue
         case .url:
             .linkColor

@@ -173,7 +173,18 @@ struct SettingsView: View {
             subtitle: "Access, startup, and keyboard shortcuts."
         ) {
             SettingsRow(title: "Reminders access", detail: nil) {
-                accessAccessory
+                accessAccessory(for: .reminder)
+            }
+
+            SettingsRowDivider()
+
+            SettingsRow(
+                title: "Calendar access",
+                detail: model.calendarAccessState == .authorized
+                    ? nil
+                    : "Needed to add events from Quick Add."
+            ) {
+                accessAccessory(for: .event)
             }
 
             SettingsRowDivider()
@@ -219,29 +230,32 @@ struct SettingsView: View {
         }
     }
 
-    private var accessAccessory: some View {
-        HStack(spacing: 9) {
-            if model.isRequestingAccess {
+    private func accessAccessory(for entity: EventKitEntity) -> some View {
+        let state = model.accessState(for: entity)
+        let isRequesting = model.requestingAccess == entity
+
+        return HStack(spacing: 9) {
+            if isRequesting {
                 ProgressView()
                     .controlSize(.mini)
             } else {
                 Label {
-                    Text(model.accessStatusTitle)
+                    Text(state.settingsStatusTitle)
                         .foregroundStyle(.secondary)
                 } icon: {
-                    Image(systemName: model.accessStatusSymbol)
-                        .foregroundStyle(Color(nsColor: model.accessStatusColor))
+                    Image(systemName: state.settingsStatusSymbol)
+                        .foregroundStyle(Color(nsColor: state.settingsStatusColor))
                 }
                 .font(.callout)
                 .labelStyle(.titleAndIcon)
             }
 
-            if let actionTitle = model.accessActionTitle,
-               !model.isRequestingAccess {
+            if let actionTitle = state.settingsActionTitle, !isRequesting {
                 Button(actionTitle) {
-                    model.performAccessAction()
+                    model.performAccessAction(for: entity)
                 }
                 .buttonStyle(.borderless)
+                .disabled(model.requestingAccess != nil)
             }
         }
     }

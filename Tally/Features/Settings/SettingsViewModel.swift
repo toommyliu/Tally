@@ -28,14 +28,16 @@ final class SettingsViewModel: ObservableObject {
     }
 
     @Published private(set) var accessState: EventKitAccessState
-    @Published private(set) var reminderLists: [ReminderListInfo]
+    @Published private(set) var calendarAccessState: EventKitAccessState
+    @Published private(set) var reminderLists: [CalendarDestinationInfo]
     @Published private(set) var quickAddShortcut: GlobalShortcut
     @Published private(set) var trayShortcut: GlobalShortcut
     @Published private(set) var quickAddShortcutError: String?
     @Published private(set) var trayShortcutError: String?
-    @Published private(set) var isRequestingAccess = false
+    @Published private(set) var requestingAccess: EventKitEntity?
 
     private let reminderStore: ReminderStore
+    private let calendarEventStore: CalendarEventStore
     private let settingsStore: AppSettingsStore
     private let launchAtLoginController: LaunchAtLoginController
     private let onQuickAddShortcutChange: (GlobalShortcut) -> Bool
@@ -46,6 +48,7 @@ final class SettingsViewModel: ObservableObject {
 
     init(
         reminderStore: ReminderStore,
+        calendarEventStore: CalendarEventStore,
         settingsStore: AppSettingsStore,
         launchAtLoginController: LaunchAtLoginController,
         onQuickAddShortcutChange: @escaping (GlobalShortcut) -> Bool,
@@ -53,6 +56,7 @@ final class SettingsViewModel: ObservableObject {
         onPermissionRequestComplete: @escaping () -> Void
     ) {
         self.reminderStore = reminderStore
+        self.calendarEventStore = calendarEventStore
         self.settingsStore = settingsStore
         self.launchAtLoginController = launchAtLoginController
         self.onQuickAddShortcutChange = onQuickAddShortcutChange
@@ -63,6 +67,7 @@ final class SettingsViewModel: ObservableObject {
         quickAddBehavior = settingsStore.quickAddBehavior
         launchAtLogin = launchAtLoginController.isEnabled
         accessState = reminderStore.access.state
+        calendarAccessState = calendarEventStore.accessState
         reminderLists = reminderStore.reminderLists
         quickAddShortcut = settingsStore.quickAddShortcut
         trayShortcut = settingsStore.trayShortcut
@@ -71,6 +76,13 @@ final class SettingsViewModel: ObservableObject {
             .removeDuplicates()
             .sink { [weak self] state in
                 self?.accessState = state
+            }
+            .store(in: &cancellables)
+
+        calendarEventStore.$accessState
+            .removeDuplicates()
+            .sink { [weak self] state in
+                self?.calendarAccessState = state
             }
             .store(in: &cancellables)
 
@@ -86,49 +98,12 @@ final class SettingsViewModel: ObservableObject {
         launchAtLoginController.errorMessage
     }
 
-    var accessStatusTitle: String {
-        switch accessState {
-        case .notDetermined:
-            return "Required"
-        case .requesting:
-            return "Requesting…"
-        case .authorized:
-            return "Allowed"
-        case .denied:
-            return "Off"
-        }
-    }
-
-    var accessStatusSymbol: String {
-        switch accessState {
-        case .authorized:
-            return "checkmark.circle.fill"
-        case .denied:
-            return "exclamationmark.circle.fill"
-        case .notDetermined, .requesting:
-            return "circle.dotted"
-        }
-    }
-
-    var accessStatusColor: NSColor {
-        switch accessState {
-        case .authorized:
-            return .systemGreen
-        case .denied:
-            return .systemOrange
-        case .notDetermined, .requesting:
-            return .secondaryLabelColor
-        }
-    }
-
-    var accessActionTitle: String? {
-        switch accessState.availableAction {
-        case .request:
-            return "Allow Access…"
-        case .openSystemSettings:
-            return "Privacy Settings…"
-        case .none:
-            return nil
+    func accessState(for entity: EventKitEntity) -> EventKitAccessState {
+        switch entity {
+        case .reminder:
+            return accessState
+        case .event:
+            return calendarAccessState
         }
     }
 
@@ -143,6 +118,8 @@ final class SettingsViewModel: ObservableObject {
 
     func refresh() {
         accessState = reminderStore.access.refresh()
+        calendarEventStore.reloadCalendars()
+        calendarAccessState = calendarEventStore.accessState
         reminderLists = reminderStore.reminderLists
         refreshLaunchAtLogin()
     }
@@ -151,30 +128,39 @@ final class SettingsViewModel: ObservableObject {
         defaultListIdentifier = identifier
     }
 
-    func performAccessAction() {
-        guard !isRequestingAccess else {
+    func performAccessAction(for entity: EventKitEntity) {
+        guard requestingAccess == nil else {
             return
         }
 
-        let action = accessState.availableAction
+        let action = accessState(for: entity).availableAction
         switch action {
         case .request:
-            isRequestingAccess = true
+            requestingAccess = entity
             Task { @MainActor [weak self] in
                 guard let self else {
                     return
                 }
 
-                _ = await reminderStore.performAccessAction()
-                isRequestingAccess = false
+                await performStoreAccessAction(for: entity)
+                requestingAccess = nil
                 onPermissionRequestComplete()
             }
         case .openSystemSettings:
             Task { @MainActor [weak self] in
-                _ = await self?.reminderStore.performAccessAction()
+                await self?.performStoreAccessAction(for: entity)
             }
         case .none:
             break
+        }
+    }
+
+    private func performStoreAccessAction(for entity: EventKitEntity) async {
+        switch entity {
+        case .reminder:
+            await reminderStore.performAccessAction()
+        case .event:
+            await calendarEventStore.performAccessAction()
         }
     }
 
@@ -240,5 +226,53 @@ final class SettingsViewModel: ObservableObject {
         launchAtLogin = launchAtLoginController.isEnabled
         isRefreshingLaunchAtLogin = false
         objectWillChange.send()
+    }
+}
+
+extension EventKitAccessState {
+    var settingsStatusTitle: String {
+        switch self {
+        case .notDetermined:
+            return "Required"
+        case .requesting:
+            return "Requesting…"
+        case .authorized:
+            return "Allowed"
+        case .denied:
+            return "Off"
+        }
+    }
+
+    var settingsStatusSymbol: String {
+        switch self {
+        case .authorized:
+            return "checkmark.circle.fill"
+        case .denied:
+            return "exclamationmark.circle.fill"
+        case .notDetermined, .requesting:
+            return "circle.dotted"
+        }
+    }
+
+    var settingsStatusColor: NSColor {
+        switch self {
+        case .authorized:
+            return .systemGreen
+        case .denied:
+            return .systemOrange
+        case .notDetermined, .requesting:
+            return .secondaryLabelColor
+        }
+    }
+
+    var settingsActionTitle: String? {
+        switch availableAction {
+        case .request:
+            return "Allow Access…"
+        case .openSystemSettings:
+            return "Privacy Settings…"
+        case .none:
+            return nil
+        }
     }
 }

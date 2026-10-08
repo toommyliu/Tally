@@ -20,6 +20,7 @@ struct QuickAddFields: Equatable {
     var priority: Int
     /// The event's start and end. Only set in event mode.
     var eventTiming: CalendarEventTiming? = nil
+    var eventDuration: QuickAddEventDuration? = nil
     var usedTokens: [QuickAddToken]
 }
 
@@ -343,6 +344,7 @@ enum QuickAddParser {
             url: url,
             priority: priority,
             eventTiming: eventTiming,
+            eventDuration: acceptedDuration?.duration,
             usedTokens: usedTokens
         )
     }

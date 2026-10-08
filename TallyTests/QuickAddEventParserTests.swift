@@ -431,6 +431,32 @@ final class QuickAddEventParserTests: XCTestCase {
         XCTAssertEqual(minutesBetween(timing.start, timing.end), 60)
     }
 
+    func testPickingADateWithoutATimeDropsOnlyLengthsThatNeedATime() throws {
+        let selection = QuickAddDueDateSelection(
+            date: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 6))),
+            includesTime: false
+        )
+        let cases: [(input: String, title: String, lastDay: Int)] = [
+            ("Call tomorrow 3pm for 45m", "Call", 6),
+            ("Call for 45m tomorrow 3pm", "Call", 6),
+            ("Call tomorrow for 45m", "Call for 45m", 6),
+            ("Offsite tomorrow 9am for 2 days", "Offsite", 7)
+        ]
+
+        for (input, title, lastDay) in cases {
+            let updated = QuickAddTokenEditor.applyingDueDate(
+                selection, to: input, calendar: calendar, now: now, mode: .event
+            )
+            let fields = parse(updated)
+
+            XCTAssertEqual(fields.title, title, updated)
+            let timing = try XCTUnwrap(fields.eventTiming, updated)
+            XCTAssertTrue(timing.isAllDay, updated)
+            assert(timing.start, day: 6, month: 10, hour: nil, minute: nil)
+            assert(timing.end, day: lastDay, month: 10, hour: nil, minute: nil)
+        }
+    }
+
     func testPickingADatePreservesMultiHourAndOvernightRanges() throws {
         let selection = QuickAddDueDateSelection(
             date: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 6, hour: 16))),

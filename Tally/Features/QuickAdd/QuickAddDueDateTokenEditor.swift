@@ -48,14 +48,12 @@ enum QuickAddTokenEditor {
            let minutes = fields.eventTiming?.durationMinutes {
             replacement += " \(QuickAddEventDuration.minutes(minutes).token)"
         }
+        let dropsTimedLength = !selection.includesTime && fields.eventDuration?.unit == .minutes
         return replacingTokens(
+            fields.usedTokens.filter { $0.isDueDateToken || (dropsTimedLength && $0.kind == .duration) },
             in: input,
-            matching: \QuickAddToken.isDueDateToken,
             with: replacement,
-            calendar: calendar,
-            now: now,
-            suppressedTokens: suppressedTokens,
-            mode: mode
+            fields: fields
         )
     }
 

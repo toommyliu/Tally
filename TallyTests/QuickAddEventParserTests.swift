@@ -307,7 +307,7 @@ final class QuickAddEventParserTests: XCTestCase {
 
     // MARK: - Length editing
 
-    func testPickingALengthMovesTheRangeEnd() throws {
+    func testPickingALengthKeepsTheRangeStart() throws {
         let updated = QuickAddTokenEditor.applyingEventLength(
             .duration(.minutes(30)),
             to: "Standup tomorrow 2-3pm",
@@ -315,7 +315,7 @@ final class QuickAddEventParserTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(updated, "Standup tomorrow 2:00pm-2:30pm")
+        XCTAssertEqual(updated, "Standup tomorrow 2:00pm for 30m")
         let timing = try XCTUnwrap(parse(updated).eventTiming)
         assert(timing.start, day: 1, month: 10, hour: 14, minute: 0)
         XCTAssertEqual(minutesBetween(timing.start, timing.end), 30)
@@ -366,7 +366,20 @@ final class QuickAddEventParserTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(updated, "Call tomorrow 3pm for 1h30m")
+        XCTAssertEqual(updated, "Call tomorrow 3:00pm for 1h30m")
+    }
+
+    func testPickingALengthKeepsItAcrossTheFallBackClockChange() throws {
+        let updated = QuickAddTokenEditor.applyingEventLength(
+            .duration(.minutes(120)),
+            to: "Shift 2026-11-01 12:30am-2:30am",
+            calendar: calendar,
+            now: now
+        )
+
+        let timing = try XCTUnwrap(parse(updated).eventTiming)
+        assert(timing.start, day: 1, month: 11, hour: 0, minute: 30)
+        XCTAssertEqual(minutesBetween(timing.start, timing.end), 120)
     }
 
     func testPickingAllDayDropsTheTimeAndLength() throws {
@@ -451,7 +464,7 @@ final class QuickAddEventParserTests: XCTestCase {
             ("Call tomorrow 3pm for 45m", "Call", 6),
             ("Call for 45m tomorrow 3pm", "Call", 6),
             ("Call tomorrow for 45m", "Call for 45m", 6),
-            ("Offsite tomorrow 9am for 2 days", "Offsite", 7)
+            ("Offsite tomorrow 9am #Work for 2 days", "Offsite", 7)
         ]
 
         for (input, title, lastDay) in cases {

@@ -159,8 +159,8 @@ enum QuickAddTokenEditor {
             var replacement = duration.token
             if lengthTokens.contains(where: { $0.kind == .timeRange }),
                let start = fields.eventTiming?.start,
-               let range = timeRangeToken(from: start, lasting: duration, calendar: calendar) {
-                replacement = range
+               let hour = start.hour {
+                replacement = "\(timeToken(hour: hour, minute: start.minute ?? 0)) \(replacement)"
             }
 
             return replacingTokens(lengthTokens, in: input, with: replacement, fields: fields)
@@ -493,24 +493,6 @@ enum QuickAddTokenEditor {
         }
 
         return String.Index(utf16Index, within: string)
-    }
-
-    private static func timeRangeToken(
-        from start: DateComponents,
-        lasting duration: QuickAddEventDuration,
-        calendar: Calendar
-    ) -> String? {
-        guard duration.unit == .minutes,
-              duration.amount <= 24 * 60,
-              let startHour = start.hour,
-              let startDate = calendar.date(from: start),
-              let endDate = calendar.date(byAdding: .minute, value: duration.amount, to: startDate) else {
-            return nil
-        }
-
-        let end = calendar.dateComponents([.hour, .minute], from: endDate)
-        let startToken = timeToken(hour: startHour, minute: start.minute ?? 0)
-        return "\(startToken)-\(timeToken(hour: end.hour ?? 0, minute: end.minute ?? 0))"
     }
 
     private static func timeToken(hour: Int, minute: Int) -> String {

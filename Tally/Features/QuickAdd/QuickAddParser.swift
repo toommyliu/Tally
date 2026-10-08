@@ -95,7 +95,7 @@ enum QuickAddParser {
         var usedTokens: [QuickAddToken] = []
         var detachedRecurrenceTokens: [QuickAddRecurrenceTokenMatch] = []
         var detachedScheduleTokens: [ScheduleTokenMatch] = []
-        var timeRange: (start: ParsedTime, end: ParsedTime)?
+        var timeRange: (start: ParsedTime, end: QuickAddEventEnd)?
         var durationCandidates: [(duration: QuickAddEventDuration, range: NSRange, titleIndex: Int)] = []
         let scannedTokens = QuickAddParsingSupport.scanTokens(in: input)
         var tokens = mode == .event
@@ -368,7 +368,7 @@ enum QuickAddParser {
     /// Places a typed time range on the parsed day, or on the next day the
     /// start time occurs. An end at or before the start runs past midnight.
     private static func resolvedTimeRange(
-        _ timeRange: (start: ParsedTime, end: ParsedTime),
+        _ timeRange: (start: ParsedTime, end: QuickAddEventEnd),
         on day: DateComponents?,
         calendar: Calendar,
         now: Date
@@ -389,26 +389,30 @@ enum QuickAddParser {
         }
 
         guard let startComponents,
-              let startDate = calendar.date(from: startComponents),
-              var endComponents = QuickAddParsingSupport.applying(
-                timeRange.end,
-                to: dateOnlyComponents(from: startDate, calendar: calendar),
-                calendar: calendar
-              ),
-              var endDate = calendar.date(from: endComponents) else {
+              let startDate = calendar.date(from: startComponents) else {
             return nil
         }
 
-        if endDate <= startDate {
-            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: endDate) else {
-                return nil
+        let endDate: Date?
+        switch timeRange.end {
+        case let .time(end):
+            let sameDayEnd = QuickAddParsingSupport.applying(
+                end,
+                to: dateOnlyComponents(from: startDate, calendar: calendar),
+                calendar: calendar
+            ).flatMap { calendar.date(from: $0) }
+            endDate = sameDayEnd.flatMap { sameDayEnd in
+                sameDayEnd > startDate ? sameDayEnd : calendar.date(byAdding: .day, value: 1, to: sameDayEnd)
             }
-
-            endDate = nextDay
-            endComponents = dateAndTimeComponents(from: endDate, calendar: calendar)
+        case let .length(length):
+            endDate = length.end(after: startDate, calendar: calendar)
         }
 
-        return (startComponents, endComponents)
+        guard let endDate else {
+            return nil
+        }
+
+        return (startComponents, dateAndTimeComponents(from: endDate, calendar: calendar))
     }
 
     /// Timed when a start time is known (one hour unless a range or length
@@ -440,15 +444,7 @@ enum QuickAddParser {
         }
 
         let length = duration ?? .minutes(CalendarEventTiming.defaultDurationMinutes)
-        let endDate: Date?
-        switch length.unit {
-        case .minutes:
-            endDate = calendar.date(byAdding: .minute, value: length.amount, to: firstDay)
-        case .days:
-            endDate = calendar.date(byAdding: .day, value: length.amount, to: firstDay)
-        }
-
-        guard let endDate else {
+        guard let endDate = length.end(after: firstDay, calendar: calendar) else {
             return nil
         }
 

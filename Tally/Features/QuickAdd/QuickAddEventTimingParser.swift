@@ -35,17 +35,31 @@ struct QuickAddEventDuration: Hashable {
             return amount == 1 ? "for 1 day" : "for \(amount) days"
         }
     }
+
+    func end(after start: Date, calendar: Calendar) -> Date? {
+        switch unit {
+        case .minutes:
+            return calendar.date(byAdding: .minute, value: amount, to: start)
+        case .days:
+            return calendar.date(byAdding: .day, value: amount, to: start)
+        }
+    }
+}
+
+enum QuickAddEventEnd {
+    case time(QuickAddParsedTime)
+    case length(QuickAddEventDuration)
 }
 
 enum QuickAddEventTimingToken {
-    case timeRange(start: QuickAddParsedTime, end: QuickAddParsedTime)
+    case timeRange(start: QuickAddParsedTime, end: QuickAddEventEnd)
     case duration(QuickAddEventDuration)
 }
 
-/// Finds time ranges (`2-3pm`, `2pm to 4pm`, `from 2 to 3pm`) and durations
-/// (`for 45m`, `for 2 hours`) and folds each multi-word phrase into one scanned
-/// token. Folding keeps the rest of the parser from reading `2pm` in
-/// `2pm - 4pm` as a standalone time.
+/// Finds time ranges (`2-3pm`, `2pm to 4pm`, `from 2 to 3pm`, `2pm for 45m`)
+/// and durations (`for 45m`, `for 2 hours`) and folds each multi-word phrase
+/// into one scanned token. Folding keeps the rest of the parser from reading
+/// `2pm` in `2pm - 4pm` as a standalone time.
 enum QuickAddEventTimingParser {
     private static let rangeSeparators: Set<String> = ["-", "–", "—", "to"]
     private static let singleTokenSeparators: [Character] = ["-", "–", "—"]
@@ -64,7 +78,9 @@ enum QuickAddEventTimingParser {
                 break
             }
 
-            guard let match = timeRange(at: index, in: tokens) ?? duration(at: index, in: tokens) else {
+            guard let match = timeRange(at: index, in: tokens) ?? duration(at: index, in: tokens).map({
+                (QuickAddEventTimingToken.duration($0.duration), $0.endIndex)
+            }) else {
                 folded.append(tokens[index])
                 index += 1
                 continue
@@ -103,14 +119,20 @@ enum QuickAddEventTimingParser {
             return (value, startIndex)
         }
 
-        guard let separator = normalized(at: startIndex + 1, in: tokens),
-              rangeSeparators.contains(separator),
-              let endText = normalized(at: startIndex + 2, in: tokens),
-              let value = resolvedRange(start: startText, end: endText) else {
+        if let separator = normalized(at: startIndex + 1, in: tokens),
+           rangeSeparators.contains(separator),
+           let endText = normalized(at: startIndex + 2, in: tokens),
+           let value = resolvedRange(start: startText, end: endText) {
+            return (value, startIndex + 2)
+        }
+
+        guard let start = QuickAddParsingSupport.parseTime(startText),
+              start.hasMeridiem || start.hasColon,
+              let length = duration(at: startIndex + 1, in: tokens) else {
             return nil
         }
 
-        return (value, startIndex + 2)
+        return (.timeRange(start: start, end: .length(length.duration)), length.endIndex)
     }
 
     private static func singleTokenRange(_ text: String) -> (String, String)? {
@@ -143,7 +165,7 @@ enum QuickAddEventTimingParser {
             end = inferringMeridiem(of: end) { forwardMinutes(from: start, to: $0) }
         }
 
-        return .timeRange(start: start, end: end)
+        return .timeRange(start: start, end: .time(end))
     }
 
     private static func inferringMeridiem(
@@ -176,20 +198,20 @@ enum QuickAddEventTimingParser {
     private static func duration(
         at index: Int,
         in tokens: [QuickAddScannedToken]
-    ) -> (value: QuickAddEventTimingToken, endIndex: Int)? {
+    ) -> (duration: QuickAddEventDuration, endIndex: Int)? {
         guard normalized(at: index, in: tokens) == "for",
               let first = normalized(at: index + 1, in: tokens) else {
             return nil
         }
 
         if let duration = compactDuration(first) {
-            return (.duration(duration), index + 1)
+            return (duration, index + 1)
         }
 
         if first == "half",
            ["an", "a"].contains(normalized(at: index + 2, in: tokens)),
            ["hour", "hr"].contains(normalized(at: index + 3, in: tokens)) {
-            return (.duration(.minutes(30)), index + 3)
+            return (.minutes(30), index + 3)
         }
 
         guard let amount = spokenAmount(first),
@@ -198,7 +220,7 @@ enum QuickAddEventTimingParser {
             return nil
         }
 
-        return (.duration(duration), index + 2)
+        return (duration, index + 2)
     }
 
     /// Single-token durations such as `45m`, `1.5h`, `1h30m`, or `2d`.

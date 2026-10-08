@@ -82,7 +82,9 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         }
         #endif
 
-        guard window?.isVisible == true, !isAwaitingCalendarAccess else {
+        guard window?.isVisible == true,
+              !isAwaitingCalendarAccess,
+              draft?.isPinned != true else {
             return
         }
 

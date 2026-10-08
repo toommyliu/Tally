@@ -41,6 +41,7 @@ final class QuickAddDraft: ObservableObject {
     }
 
     @Published var keepsOpenAfterAdd: Bool
+    @Published var isPinned = false
     @Published var selectedRangeRequest: NSRange?
     @Published var notesFocusRequestID = 0
     @Published private(set) var errorMessage: String?

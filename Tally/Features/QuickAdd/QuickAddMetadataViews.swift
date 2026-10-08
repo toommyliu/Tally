@@ -1053,10 +1053,15 @@ struct QuickAddHelpPopover: View {
             Divider()
                 .padding(.vertical, 10)
 
-            HStack(spacing: 16) {
-                keyboardHint(key: "Return", description: "Add")
-                keyboardHint(key: "⌘1 ⌘2", description: "Reminder / Event")
-                keyboardHint(key: "Esc", description: "Keep text / close")
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
+                GridRow {
+                    keyboardHint(key: "Return", description: "Add")
+                    keyboardHint(key: "⌘1 ⌘2", description: "Reminder / Event")
+                }
+                GridRow {
+                    keyboardHint(key: "⌘P", description: "Pin")
+                    keyboardHint(key: "Esc", description: "Keep text / close")
+                }
             }
         }
         .padding(14)

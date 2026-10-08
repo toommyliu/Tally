@@ -13,7 +13,7 @@ enum QuickAddBehavior: String, CaseIterable, Identifiable {
         case .closeAfterAdding:
             return "Close after adding"
         case .keepOpen:
-            return "Keep open"
+            return "Add more"
         }
     }
 }

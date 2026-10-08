@@ -70,9 +70,15 @@ struct QuickAddWindowView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 0) {
-            QuickAddModePicker(mode: draft.mode, onSelect: selectMode)
-                .disabled(draft.isSaving)
-                .padding(.bottom, 10)
+            HStack {
+                QuickAddModePicker(mode: draft.mode, onSelect: selectMode)
+                    .disabled(draft.isSaving)
+
+                Spacer(minLength: 12)
+
+                pinButton
+            }
+            .padding(.bottom, 10)
 
             HighlightedQuickAddTextField(
                 text: $draft.text,
@@ -173,7 +179,7 @@ struct QuickAddWindowView: View {
             Button(action: onCancel) {
                 Text("Cancel")
             }
-            .buttonStyle(QuickAddFooterButtonStyle(kind: .secondary))
+            .buttonStyle(QuickAddButtonStyle(kind: .secondary))
             .quickAddFocus(
                 $focusedControl,
                 equals: .cancel,
@@ -191,7 +197,7 @@ struct QuickAddWindowView: View {
                     Text(submitTitle)
                 }
             }
-            .buttonStyle(QuickAddFooterButtonStyle(kind: .primary))
+            .buttonStyle(QuickAddButtonStyle(kind: .primary))
             .quickAddFocus(
                 $focusedControl,
                 equals: .submit,
@@ -212,7 +218,7 @@ struct QuickAddWindowView: View {
         } label: {
             Label("Help", systemImage: "questionmark")
         }
-        .buttonStyle(QuickAddFooterButtonStyle(
+        .buttonStyle(QuickAddButtonStyle(
             kind: .utility(isActive: activePopover == .help)
         ))
         .quickAddFocus(
@@ -237,12 +243,9 @@ struct QuickAddWindowView: View {
         Button {
             draft.keepsOpenAfterAdd.toggle()
         } label: {
-            Label(
-                "Keep open",
-                systemImage: draft.keepsOpenAfterAdd ? "pin.fill" : "pin"
-            )
+            Label("Add more", systemImage: "rectangle.stack.badge.plus")
         }
-        .buttonStyle(QuickAddFooterButtonStyle(
+        .buttonStyle(QuickAddButtonStyle(
             kind: .utility(isActive: draft.keepsOpenAfterAdd)
         ))
         .quickAddFocus(
@@ -254,7 +257,22 @@ struct QuickAddWindowView: View {
             draft.keepsOpenAfterAdd.toggle()
         }
         .accessibilityValue(draft.keepsOpenAfterAdd ? "On" : "Off")
-        .help("Keep Quick Add open after a successful save")
+        .help("Stay open after adding so you can add another")
+    }
+
+    private var pinButton: some View {
+        Button {
+            draft.isPinned.toggle()
+        } label: {
+            Label("Pin", systemImage: draft.isPinned ? "pin.fill" : "pin")
+                .labelStyle(.iconOnly)
+        }
+        .buttonStyle(QuickAddButtonStyle(kind: .icon(isActive: draft.isPinned)))
+        .focusable(false)
+        .keyboardShortcut("p", modifiers: .command)
+        .accessibilityLabel("Pin Quick Add")
+        .accessibilityValue(draft.isPinned ? "On" : "Off")
+        .help("Keep Quick Add open when you switch windows (⌘P)")
     }
 
     private var hasFeedback: Bool {
@@ -458,13 +476,14 @@ private struct QuickAddCalendarAccessBanner: View {
     }
 }
 
-private struct QuickAddFooterButtonStyle: ButtonStyle {
+private struct QuickAddButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     enum Kind {
         case primary
         case secondary
         case utility(isActive: Bool)
+        case icon(isActive: Bool)
     }
 
     let kind: Kind
@@ -474,7 +493,7 @@ private struct QuickAddFooterButtonStyle: ButtonStyle {
             .font(.system(size: 12.5, weight: .medium))
             .foregroundStyle(foregroundColor)
             .padding(.horizontal, horizontalPadding)
-            .frame(height: 32)
+            .frame(minWidth: height, minHeight: height, maxHeight: height)
             .background(
                 backgroundColor(isPressed: configuration.isPressed),
                 in: Capsule()
@@ -489,6 +508,15 @@ private struct QuickAddFooterButtonStyle: ButtonStyle {
             .opacity(isEnabled ? 1 : 0.46)
     }
 
+    private var height: CGFloat {
+        switch kind {
+        case .primary, .secondary, .utility:
+            return 32
+        case .icon:
+            return 26
+        }
+    }
+
     private var horizontalPadding: CGFloat {
         switch kind {
         case .primary:
@@ -497,6 +525,8 @@ private struct QuickAddFooterButtonStyle: ButtonStyle {
             return 11
         case .utility:
             return 10
+        case .icon:
+            return 0
         }
     }
 
@@ -506,7 +536,7 @@ private struct QuickAddFooterButtonStyle: ButtonStyle {
             return Color(nsColor: .alternateSelectedControlTextColor)
         case .secondary:
             return .primary
-        case let .utility(isActive):
+        case let .utility(isActive), let .icon(isActive):
             return isActive ? TallyPalette.accent : .secondary
         }
     }
@@ -515,7 +545,7 @@ private struct QuickAddFooterButtonStyle: ButtonStyle {
         switch kind {
         case .primary:
             return false
-        case .secondary, .utility:
+        case .secondary, .utility, .icon:
             return true
         }
     }
@@ -526,7 +556,7 @@ private struct QuickAddFooterButtonStyle: ButtonStyle {
             return .clear
         case .secondary:
             return Color.primary.opacity(0.08)
-        case let .utility(isActive):
+        case let .utility(isActive), let .icon(isActive):
             return isActive
                 ? TallyPalette.accent.opacity(0.16)
                 : Color.primary.opacity(0.06)
@@ -539,7 +569,7 @@ private struct QuickAddFooterButtonStyle: ButtonStyle {
             return TallyPalette.accent.opacity(isPressed ? 0.82 : 1)
         case .secondary:
             return Color.primary.opacity(isPressed ? 0.13 : 0.08)
-        case let .utility(isActive):
+        case let .utility(isActive), let .icon(isActive):
             if isActive {
                 return TallyPalette.accent.opacity(isPressed ? 0.17 : 0.11)
             }

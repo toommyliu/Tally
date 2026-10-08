@@ -3,36 +3,6 @@ import XCTest
 @testable import Tally
 
 final class ReminderCreationRequestTests: XCTestCase {
-    func testMissingConfiguredListDoesNotFallBackToDefault() {
-        let inbox = ReminderListInfo(id: "inbox-id", title: "Inbox")
-        let request = makeRequest(listIdentifier: "deleted-list-id")
-
-        let resolved = ReminderDestinationResolver.resolve(
-            request: request,
-            writableDestinations: [inbox],
-            defaultDestination: inbox,
-            identifier: \.id,
-            title: \.title
-        )
-
-        XCTAssertNil(resolved)
-    }
-
-    func testAutomaticDestinationStillUsesDefaultList() {
-        let inbox = ReminderListInfo(id: "inbox-id", title: "Inbox")
-        let request = makeRequest()
-
-        let resolved = ReminderDestinationResolver.resolve(
-            request: request,
-            writableDestinations: [inbox],
-            defaultDestination: inbox,
-            identifier: \.id,
-            title: \.title
-        )
-
-        XCTAssertEqual(resolved, inbox)
-    }
-
     func testCombinedNotesTrimsInputAndPreservesInlineNotesAndTags() {
         let request = makeRequest(
             userNotes: "  Supporting context\n",
@@ -179,17 +149,15 @@ final class ReminderCreationRequestTests: XCTestCase {
     private func makeRequest(
         userNotes: String? = nil,
         inlineNotes: String? = nil,
-        tags: [String] = [],
-        listIdentifier: String? = nil,
-        listName: String? = nil
+        tags: [String] = []
     ) -> ReminderCreationRequest {
         ReminderCreationRequest(
             title: "Call Sam",
             userNotes: userNotes,
             inlineNotes: inlineNotes,
             tags: tags,
-            listIdentifier: listIdentifier,
-            listName: listName,
+            listIdentifier: nil,
+            listName: nil,
             dueDate: nil,
             recurrence: nil,
             earlyReminder: nil,

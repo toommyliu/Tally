@@ -1,21 +1,19 @@
+import Combine
 import EventKit
-import AppKit
 import Foundation
 
 @MainActor
 final class ReminderStore: ObservableObject {
-    typealias AccessState = ReminderAccessState
-
-    @Published private(set) var accessState: AccessState = .unknown
     @Published private(set) var reminders: [ReminderItem] = []
     @Published private(set) var reminderLists: [ReminderListInfo] = []
     @Published private(set) var isLoading = false
     @Published private(set) var isSaving = false
     @Published var errorMessage: String?
 
-    private let eventStore = EKEventStore()
-    private let accessController: ReminderAccessController
-    private var changeObserver: NSObjectProtocol?
+    let access: EventKitAccessController
+
+    private let eventKit: EventKitService
+    private var changeSubscription: AnyCancellable?
     private var scheduledReloadTask: Task<Void, Never>?
     private var reloadGeneration = 0
     private let isUITesting: Bool
@@ -25,28 +23,27 @@ final class ReminderStore: ObservableObject {
             return reminderLists.first?.title ?? "Inbox"
         }
 
-        guard accessState == .authorized else {
+        guard access.state == .authorized else {
             return "Inbox"
         }
 
-        return eventStore.defaultCalendarForNewReminders()?.title ?? "Inbox"
+        return eventKit.defaultCalendar(for: .reminder)?.title ?? "Inbox"
     }
 
     var reminderListTitles: [String] {
         reminderLists.map(\.title)
     }
 
-    init() {
-        #if DEBUG
-        isUITesting = ProcessInfo.processInfo.arguments.contains("--ui-testing")
-        #else
-        isUITesting = false
-        #endif
+    private var eventStore: EKEventStore {
+        eventKit.eventStore
+    }
 
-        accessController = ReminderAccessController(eventStore: eventStore)
+    init(eventKit: EventKitService) {
+        self.eventKit = eventKit
+        access = eventKit.reminderAccess
+        isUITesting = eventKit.mode == .uiTesting
 
         if isUITesting {
-            accessState = .authorized
             reminderLists = [
                 ReminderListInfo(id: "ui-inbox", title: "Inbox"),
                 ReminderListInfo(id: "ui-personal", title: "Personal"),
@@ -67,11 +64,7 @@ final class ReminderStore: ObservableObject {
             ]
         }
 
-        changeObserver = NotificationCenter.default.addObserver(
-            forName: .EKEventStoreChanged,
-            object: eventStore,
-            queue: .main
-        ) { [weak self] _ in
+        changeSubscription = eventKit.changes.sink { [weak self] in
             Task { @MainActor in
                 self?.scheduleReloadAfterExternalChange()
             }
@@ -79,9 +72,6 @@ final class ReminderStore: ObservableObject {
     }
 
     deinit {
-        if let changeObserver {
-            NotificationCenter.default.removeObserver(changeObserver)
-        }
         scheduledReloadTask?.cancel()
     }
 
@@ -90,54 +80,16 @@ final class ReminderStore: ObservableObject {
             return
         }
 
-        refreshAccessState()
-
-        if accessState == .notDetermined {
-            await requestAccess()
-        }
-
+        await access.requestIfNeeded()
         await reload()
     }
 
-    func refreshAccessState() {
-        guard !isUITesting else {
-            accessState = .authorized
-            return
-        }
-
-        accessState = accessController.currentState()
-    }
-
-    func requestAccess() async {
-        guard !isUITesting else {
-            accessState = .authorized
-            return
-        }
-
-        let currentState = accessController.currentState()
-
-        guard currentState == .notDetermined else {
-            accessState = currentState
-            return
-        }
-
-        accessState = .requesting
-        accessState = await accessController.requestAccessIfNeeded()
-    }
-
     @discardableResult
-    func performAccessAction() async -> ReminderAccessAction {
-        refreshAccessState()
-        let action = accessState.availableAction
+    func performAccessAction() async -> EventKitAccessAction {
+        let action = await access.performAvailableAction()
 
-        switch action {
-        case .request:
-            await requestAccess()
+        if action == .request {
             await reload()
-        case .openSystemSettings:
-            openRemindersPrivacySettings()
-        case .none:
-            break
         }
 
         return action
@@ -154,9 +106,7 @@ final class ReminderStore: ObservableObject {
             return
         }
 
-        refreshAccessState()
-
-        guard accessState == .authorized else {
+        guard access.refresh() == .authorized else {
             reminders = []
             reminderLists = []
             isLoading = false
@@ -200,7 +150,7 @@ final class ReminderStore: ObservableObject {
         }
 
         guard await ensureAccessForUserAction() else {
-            errorMessage = accessState.saveErrorMessage
+            errorMessage = access.state.saveErrorMessage
             return false
         }
 
@@ -325,24 +275,7 @@ final class ReminderStore: ObservableObject {
     }
 
     func openReminders() {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.reminders") else {
-            return
-        }
-
-        NSWorkspace.shared.openApplication(
-            at: url,
-            configuration: NSWorkspace.OpenConfiguration()
-        )
-    }
-
-    private func openRemindersPrivacySettings() {
-        guard let url = URL(
-            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
-        ) else {
-            return
-        }
-
-        NSWorkspace.shared.open(url)
+        eventKit.openApp(for: .reminder)
     }
 
     private func fetchIncompleteReminders() async throws -> [EKReminder] {
@@ -376,23 +309,11 @@ final class ReminderStore: ObservableObject {
     }
 
     private func writableCalendar(for request: ReminderCreationRequest) throws -> EKCalendar {
-        let calendars = eventStore
-            .calendars(for: .reminder)
-            .filter(\.allowsContentModifications)
-        let defaultCalendar = eventStore.defaultCalendarForNewReminders()
-            .flatMap { $0.allowsContentModifications ? $0 : nil }
-
-        if let calendar = ReminderDestinationResolver.resolve(
-            request: request,
-            writableDestinations: calendars,
-            defaultDestination: defaultCalendar,
-            identifier: \.calendarIdentifier,
-            title: \.title
-        ) {
+        if let calendar = eventKit.writableCalendar(for: .reminder, matching: request.destination) {
             return calendar
         }
 
-        if request.requiresSpecificList {
+        if request.destination.isSpecific {
             throw ReminderStoreError.requestedListUnavailable
         }
 
@@ -400,28 +321,14 @@ final class ReminderStore: ObservableObject {
     }
 
     private func writableReminderLists() -> [ReminderListInfo] {
-        eventStore
-            .calendars(for: .reminder)
-            .filter(\.allowsContentModifications)
+        eventKit
+            .writableCalendars(for: .reminder)
             .map { ReminderListInfo(id: $0.calendarIdentifier, title: $0.title) }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
     private func ensureAccessForUserAction() async -> Bool {
-        let currentState = accessController.currentState()
-
-        if currentState == .authorized {
-            accessState = .authorized
-            return true
-        }
-
-        if currentState == .notDetermined {
-            await requestAccess()
-            return accessState == .authorized
-        }
-
-        accessState = currentState
-        return false
+        await access.requestIfNeeded() == .authorized
     }
 
     private func scheduleReloadAfterExternalChange() {
@@ -445,7 +352,7 @@ final class ReminderStore: ObservableObject {
         try? await Task.sleep(for: .milliseconds(120))
         guard let listTitle = uiTestingList(for: request)?.title else {
             isSaving = false
-            errorMessage = request.requiresSpecificList
+            errorMessage = request.destination.isSpecific
                 ? ReminderStoreError.requestedListUnavailable.localizedDescription
                 : ReminderStoreError.noWritableList.localizedDescription
             return false
@@ -466,10 +373,10 @@ final class ReminderStore: ObservableObject {
     }
 
     private func uiTestingList(for request: ReminderCreationRequest) -> ReminderListInfo? {
-        ReminderDestinationResolver.resolve(
-            request: request,
-            writableDestinations: reminderLists,
-            defaultDestination: reminderLists.first,
+        CalendarDestinationResolver.resolve(
+            request.destination,
+            in: reminderLists,
+            default: reminderLists.first,
             identifier: \.id,
             title: \.title
         )
@@ -524,42 +431,13 @@ private enum ReminderStoreError: LocalizedError {
     }
 }
 
-enum ReminderDestinationResolver {
-    static func resolve<Destination>(
-        request: ReminderCreationRequest,
-        writableDestinations: [Destination],
-        defaultDestination: Destination?,
-        identifier: (Destination) -> String,
-        title: (Destination) -> String
-    ) -> Destination? {
-        if let listIdentifier = request.listIdentifier {
-            return writableDestinations.first {
-                identifier($0) == listIdentifier
-            }
-        }
-
-        if let listName = request.listName {
-            return writableDestinations.first {
-                title($0).compare(
-                    listName,
-                    options: [.caseInsensitive, .diacriticInsensitive]
-                ) == .orderedSame
-            }
-        }
-
-        return defaultDestination ?? writableDestinations.first
-    }
-}
-
-private extension ReminderAccessState {
+private extension EventKitAccessState {
     var saveErrorMessage: String {
         switch self {
         case .notDetermined, .requesting:
             return "Waiting for Reminders access."
         case .denied:
             return "Reminders access is off. Enable it in System Settings."
-        case .unknown:
-            return "Tally could not verify Reminders access."
         case .authorized:
             return "The reminder could not be saved."
         }

@@ -30,8 +30,8 @@
 		100000000000000000000019 /* DueDatePickerPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011D /* DueDatePickerPopover.swift */; };
 		10000000000000000000001A /* TallyChromeStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011E /* TallyChromeStyle.swift */; };
 		10000000000000000000001B /* ReminderFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000011F /* ReminderFormattingTests.swift */; };
-		10000000000000000000001C /* ReminderAccessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000120 /* ReminderAccessController.swift */; };
-		10000000000000000000001D /* ReminderAccessControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000121 /* ReminderAccessControllerTests.swift */; };
+		10000000000000000000001C /* EventKitAccessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000120 /* EventKitAccessController.swift */; };
+		10000000000000000000001D /* EventKitAccessControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000121 /* EventKitAccessControllerTests.swift */; };
 		10000000000000000000001E /* QuickAddWindowSnapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000122 /* QuickAddWindowSnapping.swift */; };
 		10000000000000000000001F /* QuickAddWindowSnappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000123 /* QuickAddWindowSnappingTests.swift */; };
 		A10000000000000000000001 /* ReminderCreationRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000101 /* ReminderCreationRequest.swift */; };
@@ -52,6 +52,10 @@
 		D40000000000000000000002 /* ReminderKitMetadataWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000103 /* ReminderKitMetadataWriter.swift */; };
 		E50000000000000000000001 /* ReminderRecurrenceCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000101 /* ReminderRecurrenceCalculator.swift */; };
 		D1F71CB2302B73EE00C4F5F9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = D1F71CB1302B73EE00C4F5F9 /* AppIcon.icon */; };
+		F60000000000000000000001 /* EventKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000101 /* EventKitService.swift */; };
+		F60000000000000000000002 /* EventKitEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000102 /* EventKitEntity.swift */; };
+		F60000000000000000000003 /* CalendarDestinationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000103 /* CalendarDestinationResolver.swift */; };
+		F60000000000000000000004 /* CalendarDestinationResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000104 /* CalendarDestinationResolverTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -92,8 +96,8 @@
 		10000000000000000000011D /* DueDatePickerPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DueDatePickerPopover.swift; sourceTree = "<group>"; };
 		10000000000000000000011E /* TallyChromeStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TallyChromeStyle.swift; sourceTree = "<group>"; };
 		10000000000000000000011F /* ReminderFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderFormattingTests.swift; sourceTree = "<group>"; };
-		100000000000000000000120 /* ReminderAccessController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderAccessController.swift; sourceTree = "<group>"; };
-		100000000000000000000121 /* ReminderAccessControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderAccessControllerTests.swift; sourceTree = "<group>"; };
+		100000000000000000000120 /* EventKitAccessController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitAccessController.swift; sourceTree = "<group>"; };
+		100000000000000000000121 /* EventKitAccessControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitAccessControllerTests.swift; sourceTree = "<group>"; };
 		100000000000000000000122 /* QuickAddWindowSnapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowSnapping.swift; sourceTree = "<group>"; };
 		100000000000000000000123 /* QuickAddWindowSnappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddWindowSnappingTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000101 /* ReminderCreationRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCreationRequest.swift; sourceTree = "<group>"; };
@@ -116,6 +120,10 @@
 		D40000000000000000000104 /* Tally-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Tally-Bridging-Header.h"; sourceTree = "<group>"; };
 		E50000000000000000000101 /* ReminderRecurrenceCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRecurrenceCalculator.swift; sourceTree = "<group>"; };
 		D1F71CB1302B73EE00C4F5F9 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		F60000000000000000000101 /* EventKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitService.swift; sourceTree = "<group>"; };
+		F60000000000000000000102 /* EventKitEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitEntity.swift; sourceTree = "<group>"; };
+		F60000000000000000000103 /* CalendarDestinationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDestinationResolver.swift; sourceTree = "<group>"; };
+		F60000000000000000000104 /* CalendarDestinationResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDestinationResolverTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -226,7 +234,10 @@
 				D40000000000000000000101 /* ReminderKitBridge.h */,
 				D40000000000000000000102 /* ReminderKitBridge.m */,
 				D40000000000000000000103 /* ReminderKitMetadataWriter.swift */,
-				100000000000000000000120 /* ReminderAccessController.swift */,
+				F60000000000000000000101 /* EventKitService.swift */,
+				F60000000000000000000102 /* EventKitEntity.swift */,
+				F60000000000000000000103 /* CalendarDestinationResolver.swift */,
+				100000000000000000000120 /* EventKitAccessController.swift */,
 				10000000000000000000010E /* HotKeyController.swift */,
 				100000000000000000000114 /* AppSettingsStore.swift */,
 				100000000000000000000115 /* LaunchAtLoginController.swift */,
@@ -252,7 +263,8 @@
 				A10000000000000000000107 /* QuickAddDraftTests.swift */,
 				A10000000000000000000108 /* SettingsPanelPlacementTests.swift */,
 				10000000000000000000011F /* ReminderFormattingTests.swift */,
-				100000000000000000000121 /* ReminderAccessControllerTests.swift */,
+				100000000000000000000121 /* EventKitAccessControllerTests.swift */,
+				F60000000000000000000104 /* CalendarDestinationResolverTests.swift */,
 				100000000000000000000123 /* QuickAddWindowSnappingTests.swift */,
 				B20000000000000000000102 /* QuickAddWindowPositionStoreTests.swift */,
 			);
@@ -402,7 +414,10 @@
 				E50000000000000000000001 /* ReminderRecurrenceCalculator.swift in Sources */,
 				D40000000000000000000001 /* ReminderKitBridge.m in Sources */,
 				D40000000000000000000002 /* ReminderKitMetadataWriter.swift in Sources */,
-				10000000000000000000001C /* ReminderAccessController.swift in Sources */,
+				F60000000000000000000001 /* EventKitService.swift in Sources */,
+				F60000000000000000000002 /* EventKitEntity.swift in Sources */,
+				F60000000000000000000003 /* CalendarDestinationResolver.swift in Sources */,
+				10000000000000000000001C /* EventKitAccessController.swift in Sources */,
 				100000000000000000000009 /* AppController.swift in Sources */,
 				10000000000000000000000A /* HotKeyController.swift in Sources */,
 				10000000000000000000000B /* QuickAddWindowController.swift in Sources */,
@@ -436,7 +451,8 @@
 				A10000000000000000000007 /* QuickAddDraftTests.swift in Sources */,
 				A10000000000000000000008 /* SettingsPanelPlacementTests.swift in Sources */,
 				10000000000000000000001B /* ReminderFormattingTests.swift in Sources */,
-				10000000000000000000001D /* ReminderAccessControllerTests.swift in Sources */,
+				10000000000000000000001D /* EventKitAccessControllerTests.swift in Sources */,
+				F60000000000000000000004 /* CalendarDestinationResolverTests.swift in Sources */,
 				10000000000000000000001F /* QuickAddWindowSnappingTests.swift in Sources */,
 				B20000000000000000000002 /* QuickAddWindowPositionStoreTests.swift in Sources */,
 			);

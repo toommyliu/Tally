@@ -18,8 +18,8 @@ struct ReminderCreationRequest: Equatable {
     let url: URL?
     let priority: Int
 
-    var requiresSpecificList: Bool {
-        listIdentifier != nil || listName != nil
+    var destination: CalendarDestinationQuery {
+        CalendarDestinationQuery(identifier: listIdentifier, name: listName)
     }
 
     var combinedNotes: String? {

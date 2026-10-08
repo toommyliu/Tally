@@ -27,7 +27,7 @@ final class SettingsViewModel: ObservableObject {
         }
     }
 
-    @Published private(set) var accessState: ReminderAccessState
+    @Published private(set) var accessState: EventKitAccessState
     @Published private(set) var reminderLists: [ReminderListInfo]
     @Published private(set) var quickAddShortcut: GlobalShortcut
     @Published private(set) var trayShortcut: GlobalShortcut
@@ -62,12 +62,12 @@ final class SettingsViewModel: ObservableObject {
         defaultListIdentifier = settingsStore.defaultListIdentifier
         quickAddBehavior = settingsStore.quickAddBehavior
         launchAtLogin = launchAtLoginController.isEnabled
-        accessState = reminderStore.accessState
+        accessState = reminderStore.access.state
         reminderLists = reminderStore.reminderLists
         quickAddShortcut = settingsStore.quickAddShortcut
         trayShortcut = settingsStore.trayShortcut
 
-        reminderStore.$accessState
+        reminderStore.access.$state
             .removeDuplicates()
             .sink { [weak self] state in
                 self?.accessState = state
@@ -88,8 +88,6 @@ final class SettingsViewModel: ObservableObject {
 
     var accessStatusTitle: String {
         switch accessState {
-        case .unknown:
-            return "Checking…"
         case .notDetermined:
             return "Required"
         case .requesting:
@@ -107,7 +105,7 @@ final class SettingsViewModel: ObservableObject {
             return "checkmark.circle.fill"
         case .denied:
             return "exclamationmark.circle.fill"
-        case .unknown, .notDetermined, .requesting:
+        case .notDetermined, .requesting:
             return "circle.dotted"
         }
     }
@@ -118,7 +116,7 @@ final class SettingsViewModel: ObservableObject {
             return .systemGreen
         case .denied:
             return .systemOrange
-        case .unknown, .notDetermined, .requesting:
+        case .notDetermined, .requesting:
             return .secondaryLabelColor
         }
     }
@@ -144,8 +142,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func refresh() {
-        reminderStore.refreshAccessState()
-        accessState = reminderStore.accessState
+        accessState = reminderStore.access.refresh()
         reminderLists = reminderStore.reminderLists
         refreshLaunchAtLogin()
     }

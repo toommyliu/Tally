@@ -357,6 +357,13 @@ enum QuickAddReminderMetadataParser {
         now: Date
     ) -> RecurrenceMatches {
         var matches = RecurrenceMatches()
+        let eventRangeStart = tokens.lazy.compactMap { token -> QuickAddParsedTime? in
+            guard case let .timeRange(start, _) = token.eventTiming else {
+                return nil
+            }
+
+            return start
+        }.first
 
         for index in tokens.indices where normalizedToken(at: index, in: tokens) == "every" {
             guard let pattern = recurrencePattern(after: index, in: tokens) else {
@@ -441,7 +448,7 @@ enum QuickAddReminderMetadataParser {
 
             guard let dueDate = dueDateComponents(
                 for: pattern.anchor,
-                time: timeMatch?.time,
+                time: eventRangeStart ?? timeMatch?.time,
                 calendar: calendar,
                 now: now
             ) else {

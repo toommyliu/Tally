@@ -243,7 +243,9 @@ final class QuickAddEventParserTests: XCTestCase {
         for input in [
             "Gym every wednesday 8-9am",
             "Gym every wednesday at 8-9am",
-            "Gym every wednesday for 3 times 8-9am"
+            "Gym every wednesday for 3 times 8-9am",
+            "Gym 8-9am every wednesday",
+            "Gym 8-9am #Work every wednesday at 7pm"
         ] {
             let fields = parse(input)
             XCTAssertEqual(fields.title, "Gym", input)

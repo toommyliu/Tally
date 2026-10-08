@@ -49,6 +49,14 @@ struct QuickAddEventDuration: Hashable {
 enum QuickAddEventEnd {
     case time(QuickAddParsedTime)
     case length(QuickAddEventDuration)
+
+    var length: QuickAddEventDuration? {
+        guard case let .length(length) = self else {
+            return nil
+        }
+
+        return length
+    }
 }
 
 enum QuickAddEventTimingToken {

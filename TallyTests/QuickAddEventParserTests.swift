@@ -464,6 +464,7 @@ final class QuickAddEventParserTests: XCTestCase {
             ("Call tomorrow 3pm for 45m", "Call", 6),
             ("Call for 45m tomorrow 3pm", "Call", 6),
             ("Call tomorrow for 45m", "Call for 45m", 6),
+            ("Offsite tomorrow 9am for 2 days", "Offsite", 7),
             ("Offsite tomorrow 9am #Work for 2 days", "Offsite", 7)
         ]
 

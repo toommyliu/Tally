@@ -43,14 +43,16 @@ enum QuickAddTokenEditor {
         }
 
         var replacement = dueDateToken(for: selection, calendar: calendar)
-        if selection.includesTime,
-           fields.usedTokens.contains(where: { $0.kind == .timeRange }),
-           let minutes = fields.eventTiming?.durationMinutes {
-            replacement += " \(QuickAddEventDuration.minutes(minutes).token)"
+        if selection.includesTime {
+            if fields.usedTokens.contains(where: { $0.kind == .timeRange }),
+               let minutes = fields.eventTiming?.durationMinutes {
+                replacement += " \(QuickAddEventDuration.minutes(minutes).token)"
+            }
+        } else if let length = fields.eventDuration, length.unit == .days {
+            replacement += " \(length.token)"
         }
-        let dropsTimedLength = !selection.includesTime && fields.eventDuration?.unit == .minutes
         return replacingTokens(
-            fields.usedTokens.filter { $0.isDueDateToken || (dropsTimedLength && $0.kind == .duration) },
+            fields.usedTokens.filter { $0.isDueDateToken || (!selection.includesTime && $0.kind == .duration) },
             in: input,
             with: replacement,
             fields: fields

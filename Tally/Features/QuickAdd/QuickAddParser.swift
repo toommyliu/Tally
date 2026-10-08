@@ -344,7 +344,7 @@ enum QuickAddParser {
             url: url,
             priority: priority,
             eventTiming: eventTiming,
-            eventDuration: acceptedDuration?.duration,
+            eventDuration: acceptedDuration?.duration ?? timeRange?.end.length,
             usedTokens: usedTokens
         )
     }

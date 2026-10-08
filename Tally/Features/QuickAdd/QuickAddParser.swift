@@ -1,15 +1,26 @@
 import Foundation
 
+/// What Quick Add creates. Event mode also understands time ranges and durations.
+enum QuickAddMode: Equatable {
+    case reminder
+    case event
+}
+
 struct QuickAddFields: Equatable {
     var title: String
+    /// The requested reminder list, or calendar in event mode.
     var listName: String?
     var tags: [String]
     var inlineNotes: String?
     var dueDate: DateComponents?
     var recurrence: ReminderRecurrence?
+    var recurrenceTimeRange: NSRange? = nil
     var earlyReminder: ReminderEarlyReminder?
     var url: URL?
     var priority: Int
+    /// The event's start and end. Only set in event mode.
+    var eventTiming: CalendarEventTiming? = nil
+    var eventDuration: QuickAddEventDuration? = nil
     var usedTokens: [QuickAddToken]
 }
 
@@ -19,6 +30,8 @@ struct QuickAddToken: Equatable {
         case tag
         case date
         case time
+        case timeRange
+        case duration
         case recurrence
         case earlyReminder
         case url
@@ -63,6 +76,7 @@ enum QuickAddListTokenCodec {
 enum QuickAddParser {
     static func parse(
         _ input: String,
+        mode: QuickAddMode = .reminder,
         calendar: Calendar = .current,
         now: Date = Date(),
         suppressedTokens: [QuickAddSuppressedToken] = []
@@ -73,6 +87,7 @@ enum QuickAddParser {
         var inlineNotes: String?
         var dueDate: DateComponents?
         var recurrence: ReminderRecurrence?
+        var recurrenceTimeRange: NSRange?
         var earlyReminder: ReminderEarlyReminder?
         var acceptedEarlyReminderRange: NSRange?
         var url: URL?
@@ -80,7 +95,19 @@ enum QuickAddParser {
         var usedTokens: [QuickAddToken] = []
         var detachedRecurrenceTokens: [QuickAddRecurrenceTokenMatch] = []
         var detachedScheduleTokens: [ScheduleTokenMatch] = []
-        let tokens = QuickAddParsingSupport.scanTokens(in: input)
+        var timeRange: (start: ParsedTime, end: QuickAddEventEnd)?
+        var durationCandidates: [(duration: QuickAddEventDuration, range: NSRange, titleIndex: Int)] = []
+        let scannedTokens = QuickAddParsingSupport.scanTokens(in: input)
+        var tokens = mode == .event
+            ? QuickAddEventTimingParser.parse(scannedTokens, in: input)
+            : scannedTokens
+        if !suppressedTokens.isEmpty {
+            for index in tokens.indices where isInsideSuppressedToken(
+                tokens[index], in: input, suppressedTokens: suppressedTokens
+            ) {
+                tokens[index].eventTiming = nil
+            }
+        }
         let reminderMetadata = QuickAddReminderMetadataParser.parse(
             tokens: tokens,
             calendar: calendar,
@@ -101,6 +128,22 @@ enum QuickAddParser {
                 inlineNotes = noteText(from: token, in: input)
                 usedTokens.append(QuickAddToken(kind: .note, range: noteRange(from: token, in: input)))
                 break
+            }
+
+            if let timing = token.eventTiming {
+                switch timing {
+                case let .timeRange(start, end) where timeRange == nil:
+                    timeRange = (start, end)
+                    usedTokens.append(QuickAddToken(kind: .timeRange, range: token.range))
+                case let .duration(duration):
+                    durationCandidates.append((duration, token.range, titleTokens.count))
+                    titleTokens.append(token.text)
+                default:
+                    titleTokens.append(token.text)
+                }
+
+                index += 1
+                continue
             }
 
             if let match = reminderMetadata.invalidRecurrences.first(where: {
@@ -126,6 +169,9 @@ enum QuickAddParser {
                 dueDate = suppressedDetachedTokens.contains(where: \.includesTime)
                     ? match.dueDateWithoutTime
                     : match.dueDate
+                recurrenceTimeRange = suppressedDetachedTokens.contains(where: \.includesTime)
+                    ? nil
+                    : match.timeRange
                 if suppressedDetachedTokens.contains(where: \.includesEnd) {
                     recurrence = ReminderRecurrence(
                         frequency: match.recurrence.frequency,
@@ -203,7 +249,8 @@ enum QuickAddParser {
                 continue
             }
 
-            if let parsedPriority = QuickAddParsingSupport.priority(for: token.text) {
+            if mode == .reminder,
+               let parsedPriority = QuickAddParsingSupport.priority(for: token.text) {
                 priority = parsedPriority
                 usedTokens.append(QuickAddToken(kind: .priority, range: token.range))
                 index += 1
@@ -248,22 +295,42 @@ enum QuickAddParser {
             index += 1
         }
 
+        var eventRangeEnd: DateComponents?
+        if let timeRange,
+           let span = resolvedTimeRange(timeRange, on: dueDate, calendar: calendar, now: now) {
+            dueDate = span.start
+            eventRangeEnd = span.end
+        }
+
         if earlyReminder != nil,
            dueDate?.hour == nil,
-           let range = acceptedEarlyReminderRange,
-           NSMaxRange(range) <= (input as NSString).length {
-            let suppression = QuickAddSuppressedToken(
-                kind: .earlyReminder,
-                range: range,
-                text: (input as NSString).substring(with: range)
-            )
+           let suppression = suppression(of: .earlyReminder, at: acceptedEarlyReminderRange, in: input) {
             return parse(
                 input,
+                mode: mode,
                 calendar: calendar,
                 now: now,
                 suppressedTokens: suppressedTokens + [suppression]
             )
         }
+
+        let acceptedDuration = timeRange == nil ? durationCandidates.first {
+            $0.duration.unit == .days || dueDate?.hour != nil
+        } : nil
+        if let acceptedDuration {
+            titleTokens.remove(at: acceptedDuration.titleIndex)
+            usedTokens.append(QuickAddToken(kind: .duration, range: acceptedDuration.range))
+        }
+
+        let eventTiming = mode == .event
+            ? resolvedEventTiming(
+                start: dueDate,
+                rangeEnd: eventRangeEnd,
+                duration: acceptedDuration?.duration,
+                calendar: calendar,
+                now: now
+            )
+            : nil
 
         return QuickAddFields(
             title: titleTokens.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines),
@@ -272,10 +339,119 @@ enum QuickAddParser {
             inlineNotes: inlineNotes,
             dueDate: dueDate,
             recurrence: recurrence,
+            recurrenceTimeRange: recurrenceTimeRange,
             earlyReminder: earlyReminder,
             url: url,
             priority: priority,
+            eventTiming: eventTiming,
+            eventDuration: acceptedDuration?.duration ?? timeRange?.end.length,
             usedTokens: usedTokens
+        )
+    }
+
+    private static func suppression(
+        of kind: QuickAddToken.Kind,
+        at range: NSRange?,
+        in input: String
+    ) -> QuickAddSuppressedToken? {
+        guard let range, NSMaxRange(range) <= (input as NSString).length else {
+            return nil
+        }
+
+        return QuickAddSuppressedToken(
+            kind: kind,
+            range: range,
+            text: (input as NSString).substring(with: range)
+        )
+    }
+
+    /// Places a typed time range on the parsed day, or on the next day the
+    /// start time occurs. An end at or before the start runs past midnight.
+    private static func resolvedTimeRange(
+        _ timeRange: (start: ParsedTime, end: QuickAddEventEnd),
+        on day: DateComponents?,
+        calendar: Calendar,
+        now: Date
+    ) -> (start: DateComponents, end: DateComponents)? {
+        let startComponents: DateComponents?
+        if let day {
+            var dateOnly = day
+            dateOnly.hour = nil
+            dateOnly.minute = nil
+            startComponents = QuickAddParsingSupport.applying(timeRange.start, to: dateOnly, calendar: calendar)
+        } else {
+            startComponents = nextTimeOccurrenceComponents(
+                hour: timeRange.start.hour,
+                minute: timeRange.start.minute,
+                from: now,
+                calendar: calendar
+            )
+        }
+
+        guard let startComponents,
+              let startDate = calendar.date(from: startComponents) else {
+            return nil
+        }
+
+        let endDate: Date?
+        switch timeRange.end {
+        case let .time(end):
+            let sameDayEnd = QuickAddParsingSupport.applying(
+                end,
+                to: dateOnlyComponents(from: startDate, calendar: calendar),
+                calendar: calendar
+            ).flatMap { calendar.date(from: $0) }
+            endDate = sameDayEnd.flatMap { sameDayEnd in
+                sameDayEnd > startDate ? sameDayEnd : calendar.date(byAdding: .day, value: 1, to: sameDayEnd)
+            }
+        case let .length(length):
+            endDate = length.end(after: startDate, calendar: calendar)
+        }
+
+        guard let endDate else {
+            return nil
+        }
+
+        return (startComponents, dateAndTimeComponents(from: endDate, calendar: calendar))
+    }
+
+    /// Timed when a start time is known (one hour unless a range or length
+    /// says otherwise); all-day otherwise, starting today when no date was typed.
+    private static func resolvedEventTiming(
+        start: DateComponents?,
+        rangeEnd: DateComponents?,
+        duration: QuickAddEventDuration?,
+        calendar: Calendar,
+        now: Date
+    ) -> CalendarEventTiming? {
+        let firstDay = start.flatMap { calendar.date(from: $0) } ?? now
+
+        guard start?.hour != nil, let start else {
+            let dayCount = duration?.unit == .days ? duration?.amount ?? 1 : 1
+            guard let lastDay = calendar.date(byAdding: .day, value: dayCount - 1, to: firstDay) else {
+                return nil
+            }
+
+            return CalendarEventTiming(
+                start: dateOnlyComponents(from: firstDay, calendar: calendar),
+                end: dateOnlyComponents(from: lastDay, calendar: calendar),
+                isAllDay: true
+            )
+        }
+
+        if let rangeEnd {
+            return CalendarEventTiming(start: start, end: rangeEnd, isAllDay: false)
+        }
+
+        let length = duration ?? .minutes(CalendarEventTiming.defaultDurationMinutes)
+        guard let endDate = length.end(after: firstDay, calendar: calendar) else {
+            return nil
+        }
+
+        return CalendarEventTiming(
+            start: start,
+            end: dateAndTimeComponents(from: endDate, calendar: calendar),
+            isAllDay: false
         )
     }
 
@@ -1315,7 +1491,8 @@ enum QuickAddParser {
                 continue
             }
 
-            if metadata.urls.contains(where: { $0.index == nextIndex }) {
+            if metadata.urls.contains(where: { $0.index == nextIndex }) ||
+                (tokens.indices.contains(nextIndex) && tokens[nextIndex].eventTiming != nil) {
                 nextIndex += 1
                 continue
             }
@@ -1489,7 +1666,16 @@ enum QuickAddParser {
         calendar.dateComponents([.calendar, .timeZone, .year, .month, .day], from: date)
     }
 
+    /// Foundation resolves a wall-clock time that repeats when clocks fall back
+    /// to its first pass, so a time in the second pass keeps a fixed offset.
     private static func dateAndTimeComponents(from date: Date, calendar: Calendar) -> DateComponents {
-        calendar.dateComponents([.calendar, .timeZone, .year, .month, .day, .hour, .minute], from: date)
+        var components = calendar.dateComponents([.calendar, .timeZone, .year, .month, .day, .hour, .minute], from: date)
+        let offset = calendar.timeZone.secondsFromGMT(for: date)
+        if let resolved = calendar.date(from: components),
+           calendar.timeZone.secondsFromGMT(for: resolved) != offset {
+            components.timeZone = TimeZone(secondsFromGMT: offset)
+        }
+
+        return components
     }
 }

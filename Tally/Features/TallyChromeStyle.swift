@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum TallyChrome {
-    static let quickAddPanelSize = CGSize(width: 590, height: 190)
+    static let quickAddPanelSize = CGSize(width: 590, height: 226)
     static let quickAddFooterHeight: CGFloat = 56
     static let panelCornerRadius: CGFloat = 14
 }

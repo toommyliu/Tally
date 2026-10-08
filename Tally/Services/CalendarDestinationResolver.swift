@@ -1,5 +1,13 @@
 import Foundation
 
+/// A writable reminder list or event calendar that new items can be saved to.
+struct CalendarDestinationInfo: Identifiable, Equatable, Hashable {
+    let id: String
+    let title: String
+    /// The account that owns the destination, such as iCloud or Gmail.
+    var sourceTitle: String? = nil
+}
+
 /// Identifies the reminder list or calendar a new item should be saved to.
 /// An explicit identifier wins over a name; with neither, the default is used.
 struct CalendarDestinationQuery: Equatable {

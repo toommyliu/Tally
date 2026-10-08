@@ -7,11 +7,12 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         width: TallyChrome.quickAddPanelSize.width,
         height: TallyChrome.quickAddPanelSize.height
     )
-    private static let maximumWindowHeight: CGFloat = 270
+    private static let maximumWindowHeight: CGFloat = 306
     private static let snapEngagementDistance: CGFloat = 12
     private static let snapReleaseDistance: CGFloat = 28
 
     private let reminderStore: ReminderStore
+    private let calendarEventStore: CalendarEventStore
     private let settingsStore: AppSettingsStore
     private let positionStore: QuickAddWindowPositionStore
     private var window: NSWindow?
@@ -21,9 +22,16 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
     private var snapGuideWindow: NSWindow?
     private var startingWindowOrigin: NSPoint?
     private var escapeKeyMonitor: Any?
+    /// The Calendar permission prompt takes focus; Quick Add must survive it.
+    private var isAwaitingCalendarAccess = false
 
-    init(reminderStore: ReminderStore, settingsStore: AppSettingsStore) {
+    init(
+        reminderStore: ReminderStore,
+        calendarEventStore: CalendarEventStore,
+        settingsStore: AppSettingsStore
+    ) {
         self.reminderStore = reminderStore
+        self.calendarEventStore = calendarEventStore
         self.settingsStore = settingsStore
         self.positionStore = settingsStore.quickAddWindowPositionStore
         super.init()
@@ -74,7 +82,7 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         }
         #endif
 
-        guard window?.isVisible == true else {
+        guard window?.isVisible == true, !isAwaitingCalendarAccess else {
             return
         }
 
@@ -106,14 +114,18 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             onCancel: { [weak self] in
                 self?.close()
             },
-            onSubmit: { [weak self] request in
-                self?.submit(request)
+            onSubmit: { [weak self] submission in
+                self?.submit(submission)
+            },
+            onCalendarAccessAction: { [weak self] in
+                self?.performCalendarAccessAction()
             },
             onPreferredHeightChange: { [weak self] height in
                 self?.resizeWindow(toPreferredHeight: height)
             }
         )
         .environmentObject(reminderStore)
+        .environmentObject(calendarEventStore)
 
         let panel = QuickAddPanel(
             contentRect: NSRect(origin: .zero, size: Self.windowSize),
@@ -181,37 +193,77 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func submit(_ request: ReminderCreationRequest) {
+    private func submit(_ submission: QuickAddSubmission) {
         guard let draft else {
             return
         }
 
         let keepsOpenAfterAdd = draft.keepsOpenAfterAdd
-        let destinationListTitle = reminderStore.destinationListTitle(for: request)
+        let destinationTitle: String
+        switch submission {
+        case let .reminder(request):
+            destinationTitle = reminderStore.destinationListTitle(for: request)
+        case let .event(request):
+            destinationTitle = calendarEventStore.destinationTitle(for: request)
+        }
 
+        draft.willSave()
         Task { @MainActor [weak self, weak draft] in
             guard let self else {
                 return
             }
 
-            let didSave = await reminderStore.addReminder(request)
+            let didSave: Bool
+            let failureMessage: String
+            switch submission {
+            case let .reminder(request):
+                didSave = await reminderStore.addReminder(request)
+                failureMessage = reminderStore.errorMessage ?? "The reminder could not be saved."
+            case let .event(request):
+                didSave = await calendarEventStore.addEvent(request)
+                failureMessage = calendarEventStore.errorMessage ?? "The event could not be saved."
+            }
+
             guard let draft, draft === self.draft else {
                 return
             }
 
             if didSave {
-                draft.didSave(to: destinationListTitle)
+                draft.didSave(to: destinationTitle)
                 if keepsOpenAfterAdd {
                     window?.makeKeyAndOrderFront(nil)
                 } else {
                     close()
                 }
             } else {
-                draft.reportSaveFailure(
-                    reminderStore.errorMessage ?? "The reminder could not be saved."
-                )
+                draft.reportSaveFailure(failureMessage)
                 window?.makeKeyAndOrderFront(nil)
             }
+        }
+    }
+
+    /// Prompts for Calendar access (or opens System Settings once denied)
+    /// without letting the system prompt dismiss Quick Add.
+    private func performCalendarAccessAction() {
+        guard !isAwaitingCalendarAccess else {
+            return
+        }
+
+        isAwaitingCalendarAccess = true
+        Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+
+            let action = await calendarEventStore.performAccessAction()
+            isAwaitingCalendarAccess = false
+
+            guard action == .request, window?.isVisible == true else {
+                return
+            }
+
+            NSApp.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
         }
     }
 

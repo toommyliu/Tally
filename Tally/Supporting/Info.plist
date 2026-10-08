@@ -26,6 +26,10 @@
 	<string>public.app-category.productivity</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Calendar access lets Tally add events from Quick Add to the calendars you choose in Apple Calendar.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Calendar access lets Tally add events from Quick Add to the calendars you choose in Apple Calendar.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
 	<key>NSPrincipalClass</key>

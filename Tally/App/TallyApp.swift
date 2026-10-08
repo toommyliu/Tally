@@ -23,6 +23,7 @@ struct TallyApp: App {
 final class TallyAppDelegate: NSObject, NSApplicationDelegate {
     let eventKit = EventKitService()
     lazy var reminderStore = ReminderStore(eventKit: eventKit)
+    lazy var calendarEventStore = CalendarEventStore(eventKit: eventKit)
     let settingsStore = AppSettingsStore()
     let launchAtLoginController = LaunchAtLoginController()
     let appController = AppController()
@@ -30,6 +31,7 @@ final class TallyAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         appController.configure(
             reminderStore: reminderStore,
+            calendarEventStore: calendarEventStore,
             settingsStore: settingsStore,
             launchAtLoginController: launchAtLoginController
         )

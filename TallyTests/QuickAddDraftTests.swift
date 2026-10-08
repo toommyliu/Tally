@@ -1,8 +1,48 @@
+import EventKit
 import XCTest
 @testable import Tally
 
 @MainActor
 final class QuickAddDraftTests: XCTestCase {
+    func testEventSubmissionCarriesRecurrenceThroughAllDayEditingAndEventKitMapping() throws {
+        let now = Date()
+        let draft = QuickAddDraft(settingsStore: makeSettings())
+        draft.mode = .event
+        draft.text = "Gym every monday 8-9am for 3 times #Work // Bring water"
+        draft.notes = "Workout plan"
+
+        let store = EKEventStore()
+        let calendar = EKCalendar(for: .event, eventStore: store)
+        guard case let .event(timedRequest) = draft.makeSubmission() else {
+            return XCTFail("Expected an event submission")
+        }
+        let timedEvent = EKEvent(eventStore: store)
+        try CalendarEventEventKitMapper.populate(timedEvent, from: timedRequest, calendar: calendar)
+
+        XCTAssertEqual(timedEvent.title, "Gym")
+        XCTAssertGreaterThan(timedEvent.startDate, now)
+        XCTAssertEqual(Calendar.current.component(.weekday, from: timedEvent.startDate), 2)
+        XCTAssertEqual(Calendar.current.component(.hour, from: timedEvent.startDate), 8)
+        XCTAssertEqual(timedEvent.endDate.timeIntervalSince(timedEvent.startDate), 3_600)
+        XCTAssertEqual(timedEvent.recurrenceRules?.first?.recurrenceEnd?.occurrenceCount, 3)
+        XCTAssertEqual(timedEvent.notes, "Workout plan\nBring water")
+        XCTAssertEqual(timedRequest.calendarName, "Work")
+
+        draft.applyEventLength(.allDay)
+        guard case let .event(allDayRequest) = draft.makeSubmission() else {
+            return XCTFail("Expected an all-day event submission")
+        }
+        let allDayEvent = EKEvent(eventStore: store)
+        try CalendarEventEventKitMapper.populate(allDayEvent, from: allDayRequest, calendar: calendar)
+
+        XCTAssertTrue(allDayEvent.isAllDay)
+        XCTAssertEqual(allDayEvent.title, "Gym")
+        XCTAssertEqual(allDayEvent.recurrenceRules?.first?.frequency, .weekly)
+        XCTAssertEqual(allDayEvent.recurrenceRules?.first?.recurrenceEnd?.occurrenceCount, 3)
+        XCTAssertEqual(allDayEvent.notes, "Workout plan\nBring water")
+        XCTAssertEqual(allDayRequest.calendarName, "Work")
+    }
+
     func testDraftStartsWithConfiguredBehavior() {
         let settings = makeSettings()
         settings.quickAddBehavior = .keepOpen
@@ -15,12 +55,12 @@ final class QuickAddDraftTests: XCTestCase {
     func testRequestUsesStableSelectedListIdentifierAndParsedMetadata() throws {
         let settings = makeSettings()
         let draft = QuickAddDraft(settingsStore: settings)
-        let work = ReminderListInfo(id: "work-id", title: "Work")
+        let work = CalendarDestinationInfo(id: "work-id", title: "Work")
         draft.text = "Call Sam 2026-08-14 3:30pm @phone P1 // Ask about renewal"
         draft.notes = "Agenda attached"
         draft.selectList(work)
 
-        let request = try XCTUnwrap(draft.makeRequest())
+        let request = try XCTUnwrap(draft.makeReminderRequest())
 
         XCTAssertEqual(request.title, "Call Sam")
         XCTAssertEqual(request.userNotes, "Agenda attached")
@@ -37,7 +77,7 @@ final class QuickAddDraftTests: XCTestCase {
         let draft = QuickAddDraft(settingsStore: settings)
         draft.text = "Buy milk"
 
-        let request = try XCTUnwrap(draft.makeRequest())
+        let request = try XCTUnwrap(draft.makeReminderRequest())
 
         XCTAssertEqual(request.listIdentifier, "personal-id")
         XCTAssertNil(request.listName)
@@ -49,7 +89,7 @@ final class QuickAddDraftTests: XCTestCase {
         let draft = QuickAddDraft(settingsStore: settings)
         draft.text = "Review metrics every Monday at 9am remind 30m early https://example.com/metrics"
 
-        let request = try XCTUnwrap(draft.makeRequest())
+        let request = try XCTUnwrap(draft.makeReminderRequest())
 
         XCTAssertEqual(request.title, "Review metrics")
         XCTAssertEqual(
@@ -251,7 +291,7 @@ final class QuickAddDraftTests: XCTestCase {
     }
 
     func testMetadataPickersPreserveSuppressedURLAcrossDuplicateTokens() throws {
-        let work = ReminderListInfo(id: "work-id", title: "Work")
+        let work = CalendarDestinationInfo(id: "work-id", title: "Work")
 
         let listDraft = QuickAddDraft(settingsStore: makeSettings())
         listDraft.text = "Review #One https://example.com #Two tomorrow"
@@ -330,6 +370,81 @@ final class QuickAddDraftTests: XCTestCase {
         XCTAssertEqual(draft.notes, "")
         XCTAssertNil(draft.errorMessage)
         XCTAssertEqual(draft.confirmationMessage, "Added to Work")
+    }
+
+    func testASaveInFlightBlocksSubmittingInEitherMode() {
+        let draft = QuickAddDraft(settingsStore: makeSettings())
+        draft.text = "Call Sam tomorrow"
+        XCTAssertTrue(draft.canSubmit)
+
+        draft.willSave()
+        XCTAssertFalse(draft.canSubmit)
+        draft.mode = .event
+        XCTAssertFalse(draft.canSubmit)
+
+        draft.reportSaveFailure("No writable calendar")
+        XCTAssertTrue(draft.canSubmit)
+
+        draft.willSave()
+        draft.didSave(to: "Work")
+        draft.text = "Plan launch"
+        XCTAssertTrue(draft.canSubmit)
+    }
+
+    func testSwitchingToEventModeKeepsTextAndBuildsAnEvent() throws {
+        let draft = QuickAddDraft(settingsStore: makeSettings())
+        draft.text = "Design review 2026-10-01 2-3pm #Work @design"
+        draft.notes = "Bring notes"
+
+        draft.mode = .event
+        let submission = try XCTUnwrap(draft.makeSubmission())
+
+        guard case let .event(request) = submission else {
+            return XCTFail("Expected an event submission")
+        }
+        XCTAssertEqual(request.title, "Design review")
+        XCTAssertEqual(request.calendarName, "Work")
+        XCTAssertEqual(request.tags, ["design"])
+        XCTAssertEqual(request.userNotes, "Bring notes")
+        XCTAssertEqual(request.timing.start.hour, 14)
+        XCTAssertEqual(request.timing.end.hour, 15)
+    }
+
+    func testSwitchingModesDropsAPickedReminderList() throws {
+        let draft = QuickAddDraft(settingsStore: makeSettings())
+        draft.text = "Plan launch"
+        draft.selectList(CalendarDestinationInfo(id: "reminders-work", title: "Work"))
+
+        draft.mode = .event
+        let request = try XCTUnwrap(draft.makeEventRequest())
+
+        XCTAssertNil(request.calendarIdentifier)
+        XCTAssertEqual(request.calendarName, "Work")
+    }
+
+    func testEventsIgnoreTheDefaultReminderList() throws {
+        let settings = makeSettings()
+        settings.defaultListIdentifier = "personal-id"
+        let draft = QuickAddDraft(settingsStore: settings)
+        draft.text = "Pay rent"
+        draft.mode = .event
+
+        let request = try XCTUnwrap(draft.makeEventRequest())
+
+        XCTAssertNil(request.calendarIdentifier)
+        XCTAssertTrue(request.timing.isAllDay)
+    }
+
+    func testPickedCalendarWinsOverASameNamedOne() throws {
+        let draft = QuickAddDraft(settingsStore: makeSettings())
+        draft.mode = .event
+        draft.text = "Holiday party tomorrow 6pm"
+        draft.selectList(CalendarDestinationInfo(id: "gmail-holidays", title: "Holidays", sourceTitle: "Gmail"))
+
+        let request = try XCTUnwrap(draft.makeEventRequest())
+
+        XCTAssertEqual(request.calendarIdentifier, "gmail-holidays")
+        XCTAssertEqual(draft.text, "Holiday party tomorrow 6pm #Holidays")
     }
 
     private func makeSettings() -> AppSettingsStore {

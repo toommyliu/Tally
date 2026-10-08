@@ -72,6 +72,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private let reminderStore: ReminderStore
+    private let calendarEventStore: CalendarEventStore
     private let settingsStore: AppSettingsStore
     private let launchAtLoginController: LaunchAtLoginController
     private var settingsPanel: SettingsPanel?
@@ -86,10 +87,12 @@ final class SettingsWindowController: NSWindowController {
 
     init(
         reminderStore: ReminderStore,
+        calendarEventStore: CalendarEventStore,
         settingsStore: AppSettingsStore,
         launchAtLoginController: LaunchAtLoginController
     ) {
         self.reminderStore = reminderStore
+        self.calendarEventStore = calendarEventStore
         self.settingsStore = settingsStore
         self.launchAtLoginController = launchAtLoginController
         super.init(window: nil)
@@ -213,6 +216,7 @@ final class SettingsWindowController: NSWindowController {
         let window = Self.makeWindow()
         let viewModel = SettingsViewModel(
             reminderStore: reminderStore,
+            calendarEventStore: calendarEventStore,
             settingsStore: settingsStore,
             launchAtLoginController: launchAtLoginController,
             onQuickAddShortcutChange: { [weak self] shortcut in

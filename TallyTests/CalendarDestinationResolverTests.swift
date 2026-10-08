@@ -2,8 +2,8 @@ import XCTest
 @testable import Tally
 
 final class CalendarDestinationResolverTests: XCTestCase {
-    private let inbox = ReminderListInfo(id: "inbox-id", title: "Inbox")
-    private let work = ReminderListInfo(id: "work-id", title: "Wörk")
+    private let inbox = CalendarDestinationInfo(id: "inbox-id", title: "Inbox")
+    private let work = CalendarDestinationInfo(id: "work-id", title: "Wörk")
 
     func testMissingConfiguredDestinationDoesNotFallBackToDefault() {
         let resolved = resolve(CalendarDestinationQuery(identifier: "deleted-id", name: nil))
@@ -66,7 +66,7 @@ final class CalendarDestinationResolverTests: XCTestCase {
         XCTAssertTrue(request.destination.isSpecific)
     }
 
-    private func resolve(_ query: CalendarDestinationQuery) -> ReminderListInfo? {
+    private func resolve(_ query: CalendarDestinationQuery) -> CalendarDestinationInfo? {
         CalendarDestinationResolver.resolve(
             query,
             in: [inbox, work],

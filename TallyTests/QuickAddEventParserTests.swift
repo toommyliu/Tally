@@ -294,7 +294,7 @@ final class QuickAddEventParserTests: XCTestCase {
 
     // MARK: - Length editing
 
-    func testPickingALengthCollapsesARangeToItsStart() throws {
+    func testPickingALengthMovesTheRangeEnd() throws {
         let updated = QuickAddTokenEditor.applyingEventLength(
             .duration(.minutes(30)),
             to: "Standup tomorrow 2-3pm",
@@ -302,10 +302,47 @@ final class QuickAddEventParserTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(updated, "Standup tomorrow 2:00pm for 30m")
+        XCTAssertEqual(updated, "Standup tomorrow 2:00pm-2:30pm")
         let timing = try XCTUnwrap(parse(updated).eventTiming)
         assert(timing.start, day: 1, month: 10, hour: 14, minute: 0)
         XCTAssertEqual(minutesBetween(timing.start, timing.end), 30)
+    }
+
+    func testPickingALengthKeepsARangeRunningPastMidnight() throws {
+        let updated = QuickAddTokenEditor.applyingEventLength(
+            .duration(.minutes(90)),
+            to: "Shift tomorrow 11pm-1am",
+            calendar: calendar,
+            now: now
+        )
+        let fields = parse(updated)
+
+        XCTAssertEqual(fields.title, "Shift")
+        let timing = try XCTUnwrap(fields.eventTiming)
+        assert(timing.start, day: 1, month: 10, hour: 23, minute: 0)
+        assert(timing.end, day: 2, month: 10, hour: 0, minute: 30)
+    }
+
+    func testPickingALengthKeepsARecurringRangeAndItsEnd() throws {
+        for input in [
+            "Gym every monday 2-3pm for 3 times",
+            "Gym 2-3pm every monday for 3 times",
+            "Gym 2-3pm"
+        ] {
+            let updated = QuickAddTokenEditor.applyingEventLength(
+                .duration(.minutes(30)), to: input, calendar: calendar, now: now
+            )
+            let fields = parse(updated)
+            let isRecurring = input.contains("every")
+
+            XCTAssertEqual(fields.title, "Gym", updated)
+            XCTAssertEqual(fields.recurrence, isRecurring ? ReminderRecurrence(
+                frequency: .weekly, weekdays: [.monday], end: .occurrenceCount(3)
+            ) : nil, updated)
+            let timing = try XCTUnwrap(fields.eventTiming, updated)
+            assert(timing.start, day: isRecurring ? 5 : 30, month: isRecurring ? 10 : 9, hour: 14, minute: 0)
+            XCTAssertEqual(minutesBetween(timing.start, timing.end), 30, updated)
+        }
     }
 
     func testPickingALengthReplacesTheOldOne() {

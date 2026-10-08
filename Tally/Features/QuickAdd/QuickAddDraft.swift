@@ -45,6 +45,7 @@ final class QuickAddDraft: ObservableObject {
     @Published var notesFocusRequestID = 0
     @Published private(set) var errorMessage: String?
     @Published private(set) var confirmationMessage: String?
+    @Published private(set) var isSaving = false
 
     private var selectedList: CalendarDestinationInfo?
     private let settingsStore: AppSettingsStore
@@ -60,7 +61,7 @@ final class QuickAddDraft: ObservableObject {
 
     var canSubmit: Bool {
         let fields = fields
-        return !fields.title.isEmpty && (mode == .reminder || fields.eventTiming != nil)
+        return !isSaving && !fields.title.isEmpty && (mode == .reminder || fields.eventTiming != nil)
     }
 
     /// The configured default reminder list. Events always use the system default calendar.
@@ -225,7 +226,12 @@ final class QuickAddDraft: ObservableObject {
         selectedRangeRequest = NSRange(location: (text as NSString).length, length: 0)
     }
 
+    func willSave() {
+        isSaving = true
+    }
+
     func reportSaveFailure(_ message: String) {
+        isSaving = false
         confirmationMessage = nil
         errorMessage = message
     }
@@ -246,6 +252,7 @@ final class QuickAddDraft: ObservableObject {
     }
 
     func didSave(to listTitle: String) {
+        isSaving = false
         text = ""
         notes = ""
         suppressedTokens = []

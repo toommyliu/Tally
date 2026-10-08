@@ -8,7 +8,6 @@ import Foundation
 final class CalendarEventStore: ObservableObject {
     @Published private(set) var calendars: [CalendarDestinationInfo] = []
     @Published private(set) var accessState: EventKitAccessState
-    @Published private(set) var isSaving = false
     @Published var errorMessage: String?
 
     let access: EventKitAccessController
@@ -115,9 +114,6 @@ final class CalendarEventStore: ObservableObject {
             errorMessage = access.state.eventSaveErrorMessage
             return false
         }
-
-        isSaving = true
-        defer { isSaving = false }
 
         do {
             guard let calendar = eventKit.writableCalendar(

@@ -372,6 +372,25 @@ final class QuickAddDraftTests: XCTestCase {
         XCTAssertEqual(draft.confirmationMessage, "Added to Work")
     }
 
+    func testASaveInFlightBlocksSubmittingInEitherMode() {
+        let draft = QuickAddDraft(settingsStore: makeSettings())
+        draft.text = "Call Sam tomorrow"
+        XCTAssertTrue(draft.canSubmit)
+
+        draft.willSave()
+        XCTAssertFalse(draft.canSubmit)
+        draft.mode = .event
+        XCTAssertFalse(draft.canSubmit)
+
+        draft.reportSaveFailure("No writable calendar")
+        XCTAssertTrue(draft.canSubmit)
+
+        draft.willSave()
+        draft.didSave(to: "Work")
+        draft.text = "Plan launch"
+        XCTAssertTrue(draft.canSubmit)
+    }
+
     func testSwitchingToEventModeKeepsTextAndBuildsAnEvent() throws {
         let draft = QuickAddDraft(settingsStore: makeSettings())
         draft.text = "Design review 2026-10-01 2-3pm #Work @design"

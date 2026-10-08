@@ -7,7 +7,6 @@ final class ReminderStore: ObservableObject {
     @Published private(set) var reminders: [ReminderItem] = []
     @Published private(set) var reminderLists: [CalendarDestinationInfo] = []
     @Published private(set) var isLoading = false
-    @Published private(set) var isSaving = false
     @Published var errorMessage: String?
 
     let access: EventKitAccessController
@@ -153,9 +152,6 @@ final class ReminderStore: ObservableObject {
             errorMessage = access.state.saveErrorMessage
             return false
         }
-
-        isSaving = true
-        defer { isSaving = false }
 
         do {
             let calendar = try writableCalendar(for: request)
@@ -348,10 +344,8 @@ final class ReminderStore: ObservableObject {
     }
 
     private func addUITestingReminder(_ request: ReminderCreationRequest) async -> Bool {
-        isSaving = true
         try? await Task.sleep(for: .milliseconds(120))
         guard let listTitle = uiTestingList(for: request)?.title else {
-            isSaving = false
             errorMessage = request.destination.isSpecific
                 ? ReminderStoreError.requestedListUnavailable.localizedDescription
                 : ReminderStoreError.noWritableList.localizedDescription
@@ -367,7 +361,6 @@ final class ReminderStore: ObservableObject {
             priority: request.priority
         ))
         reminders.sort(by: ReminderStore.sortReminders)
-        isSaving = false
         errorMessage = nil
         return true
     }

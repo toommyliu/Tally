@@ -207,6 +207,7 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
             destinationTitle = calendarEventStore.destinationTitle(for: request)
         }
 
+        draft.willSave()
         Task { @MainActor [weak self, weak draft] in
             guard let self else {
                 return

@@ -71,6 +71,7 @@ struct QuickAddWindowView: View {
     private var composer: some View {
         VStack(alignment: .leading, spacing: 0) {
             QuickAddModePicker(mode: draft.mode, onSelect: selectMode)
+                .disabled(draft.isSaving)
                 .padding(.bottom, 10)
 
             HighlightedQuickAddTextField(
@@ -182,7 +183,7 @@ struct QuickAddWindowView: View {
 
             Button(action: submit) {
                 HStack(spacing: 6) {
-                    if isSaving {
+                    if draft.isSaving {
                         ProgressView()
                             .controlSize(.mini)
                     }
@@ -260,20 +261,16 @@ struct QuickAddWindowView: View {
         draft.errorMessage != nil || draft.confirmationMessage != nil
     }
 
-    private var isSaving: Bool {
-        draft.mode == .event ? calendarEventStore.isSaving : reminderStore.isSaving
-    }
-
     private var needsCalendarAccess: Bool {
         draft.mode == .event && calendarEventStore.accessState != .authorized
     }
 
     private var canSubmit: Bool {
-        draft.canSubmit && !isSaving && !needsCalendarAccess
+        draft.canSubmit && !needsCalendarAccess
     }
 
     private var submitTitle: String {
-        if isSaving {
+        if draft.isSaving {
             return "Adding…"
         }
 

@@ -151,6 +151,17 @@ final class QuickAddEventParserTests: XCTestCase {
         assert(timing.end, day: 1, month: 10, hour: 10, minute: 0)
     }
 
+    func testLengthsEndingInTheRepeatedHourKeepTheirEnd() throws {
+        for (input, minutes) in [
+            ("Shift 2026-11-01 12:30am for 2h", 120),
+            ("Shift 2026-11-01 1:30am for 1h", 60),
+            ("Shift 2026-11-01 1:45am for 30m", 30)
+        ] {
+            let timing = try XCTUnwrap(parse(input).eventTiming, input)
+            XCTAssertEqual(minutesBetween(timing.start, timing.end), minutes, input)
+        }
+    }
+
     func testDurationBeforeTheTimeStillAttachesToTheDate() throws {
         let fields = parse("Call tomorrow for 30m at 3pm")
 

@@ -85,6 +85,24 @@ final class CalendarEventEventKitMapperTests: XCTestCase {
         XCTAssertNil(rule.recurrenceEnd?.endDate)
     }
 
+    func testTypedLengthEndingInTheRepeatedHourKeepsItsLength() throws {
+        let now = try XCTUnwrap(dateCalendar.date(from: DateComponents(year: 2026, month: 10, day: 30, hour: 10)))
+        let timing = try XCTUnwrap(QuickAddParser.parse(
+            "Shift 2026-11-01 1:45am for 30m", mode: .event, calendar: dateCalendar, now: now
+        ).eventTiming)
+        let event = EKEvent(eventStore: eventStore)
+
+        try CalendarEventEventKitMapper.populate(
+            event,
+            from: makeRequest(timing: timing),
+            calendar: makeCalendar(),
+            dateCalendar: dateCalendar
+        )
+
+        XCTAssertEqual(event.endDate.timeIntervalSince(event.startDate), 30 * 60)
+        XCTAssertEqual(event.timeZone, dateCalendar.timeZone)
+    }
+
     func testAlertOffsetsCoverEveryUnit() {
         XCTAssertEqual(CalendarEventEventKitMapper.offset(for: .init(amount: 2, unit: .hours)), 7_200)
         XCTAssertEqual(CalendarEventEventKitMapper.offset(for: .init(amount: 1, unit: .days)), 86_400)

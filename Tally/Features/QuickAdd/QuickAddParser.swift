@@ -1670,7 +1670,16 @@ enum QuickAddParser {
         calendar.dateComponents([.calendar, .timeZone, .year, .month, .day], from: date)
     }
 
+    /// Foundation resolves a wall-clock time that repeats when clocks fall back
+    /// to its first pass, so a time in the second pass keeps a fixed offset.
     private static func dateAndTimeComponents(from date: Date, calendar: Calendar) -> DateComponents {
-        calendar.dateComponents([.calendar, .timeZone, .year, .month, .day, .hour, .minute], from: date)
+        var components = calendar.dateComponents([.calendar, .timeZone, .year, .month, .day, .hour, .minute], from: date)
+        let offset = calendar.timeZone.secondsFromGMT(for: date)
+        if let resolved = calendar.date(from: components),
+           calendar.timeZone.secondsFromGMT(for: resolved) != offset {
+            components.timeZone = TimeZone(secondsFromGMT: offset)
+        }
+
+        return components
     }
 }

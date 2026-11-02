@@ -189,28 +189,8 @@ enum QuickAddEventTimingParser {
         at index: Int,
         in tokens: QuickAddParseWords
     ) -> (duration: QuickAddEventDuration, endIndex: Int)? {
-        guard normalized(at: index, in: tokens) == "for",
-              let first = normalized(at: index + 1, in: tokens) else {
-            return nil
-        }
-
-        if let duration = QuickAddDurationParser.compactEventDuration(first) {
-            return (duration, index + 1)
-        }
-
-        if first == "half",
-           ["an", "a"].contains(normalized(at: index + 2, in: tokens)),
-           ["hour", "hr"].contains(normalized(at: index + 3, in: tokens)) {
-            return (.minutes(30), index + 3)
-        }
-
-        guard let amount = QuickAddDurationParser.spokenAmount(first),
-              let unitText = normalized(at: index + 2, in: tokens),
-              let duration = QuickAddDurationParser.eventDuration(amount: amount, unit: unitText) else {
-            return nil
-        }
-
-        return (duration, index + 2)
+        guard normalized(at: index, in: tokens) == "for" else { return nil }
+        return QuickAddDurationParser.eventLength(at: index + 1, in: tokens)
     }
 
     private static func normalized(at index: Int, in tokens: QuickAddParseWords) -> String? {

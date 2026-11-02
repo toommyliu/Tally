@@ -99,7 +99,7 @@ final class QuickAddDraft: ObservableObject {
             listName: fields.listName,
             dueDate: fields.dueDate,
             recurrence: fields.recurrence,
-            earlyReminder: fields.earlyReminder,
+            earlyReminder: fields.earlyReminder?.reminderValue,
             url: fields.url,
             priority: fields.priority
         )
@@ -120,7 +120,7 @@ final class QuickAddDraft: ObservableObject {
             calendarName: fields.listName,
             timing: timing,
             recurrence: fields.recurrence,
-            alert: fields.earlyReminder.flatMap(CalendarEventAlert.init(offset:)),
+            alert: fields.earlyReminder?.eventValue,
             url: fields.url
         )
     }

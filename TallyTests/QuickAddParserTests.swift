@@ -849,29 +849,29 @@ final class QuickAddParserTests: XCTestCase {
     func testParsesEarlyReminderLanguage() throws {
         let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
         let oneDay = QuickAddParser.parse(
-            "Renew policy tomorrow at 10am remind 1d before",
+            "Renew policy tomorrow at 10am !1d",
             calendar: calendar,
             now: now
         )
         let twoHours = QuickAddParser.parse(
-            "Join review tomorrow at 2pm remind me 2h before",
+            "Join review tomorrow at 2pm !2h",
             calendar: calendar,
             now: now
         )
         let thirtyMinutes = QuickAddParser.parse(
-            "Submit report tomorrow at 10am remind 30m early",
+            "Submit report tomorrow at 10am !30m",
             calendar: calendar,
             now: now
         )
 
         XCTAssertEqual(oneDay.title, "Renew policy")
-        XCTAssertEqual(oneDay.earlyReminder, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 1)!, unit: .days))
+        XCTAssertEqual(oneDay.earlyReminder?.reminderValue, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 1)!, unit: .days))
         XCTAssertDate(oneDay.dueDate, year: 2026, month: 5, day: 14, hour: 10, minute: 0)
         XCTAssertEqual(twoHours.title, "Join review")
-        XCTAssertEqual(twoHours.earlyReminder, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 2)!, unit: .hours))
+        XCTAssertEqual(twoHours.earlyReminder?.reminderValue, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 2)!, unit: .hours))
         XCTAssertEqual(thirtyMinutes.title, "Submit report")
         XCTAssertEqual(
-            thirtyMinutes.earlyReminder,
+            thirtyMinutes.earlyReminder?.reminderValue,
             ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 30)!, unit: .minutes)
         )
     }
@@ -880,25 +880,25 @@ final class QuickAddParserTests: XCTestCase {
         let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
 
         let fields = QuickAddParser.parse(
-            "Review remind 2h early tomorrow at 5pm",
+            "Review !2h tomorrow at 5pm",
             calendar: calendar,
             now: now
         )
 
         XCTAssertEqual(fields.title, "Review")
         XCTAssertDate(fields.dueDate, year: 2026, month: 8, day: 13, hour: 17, minute: 0)
-        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 2)!, unit: .hours))
+        XCTAssertEqual(fields.earlyReminder?.reminderValue, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 2)!, unit: .hours))
     }
 
     func testEarlyReminderWithoutTimedScheduleCannotBecomeDueDate() throws {
         let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
-        let input = "Review remind 2h early"
+        let input = "Review !2h"
 
         let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
 
-        XCTAssertEqual(fields.title, input)
+        XCTAssertEqual(fields.title, "Review")
         XCTAssertNil(fields.dueDate)
-        XCTAssertNil(fields.earlyReminder)
+        XCTAssertEqual(fields.earlyReminder?.warning, "Add a date")
     }
 
     func testParsesStandaloneHTTPURL() {
@@ -957,7 +957,7 @@ final class QuickAddParserTests: XCTestCase {
 
     func testParsesRecurrenceEarlyReminderAndURLTogether() throws {
         let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
-        let input = "Review metrics every Monday at 9am remind 30m early https://example.com/metrics"
+        let input = "Review metrics every Monday at 9am !30m https://example.com/metrics"
 
         let fields = QuickAddParser.parse(input, calendar: calendar, now: now)
 
@@ -966,23 +966,23 @@ final class QuickAddParserTests: XCTestCase {
             fields.recurrence,
             ReminderRecurrence(frequency: .weekly, weekdays: [.monday])
         )
-        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 30)!, unit: .minutes))
+        XCTAssertEqual(fields.earlyReminder?.reminderValue, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 30)!, unit: .minutes))
         XCTAssertEqual(fields.url, URL(string: "https://example.com/metrics"))
         XCTAssertDate(fields.dueDate, year: 2026, month: 5, day: 18, hour: 9, minute: 0)
-        XCTAssertToken(in: fields, originalText: input, kind: .earlyReminder, equals: "remind 30m early")
+        XCTAssertToken(in: fields, originalText: input, kind: .earlyReminder, equals: "!30m")
     }
 
-    func testLeavesEarlyReminderAsTitleTextWithoutTimedDueDate() throws {
+    func testDateOnlyReminderAcceptsDayOffset() throws {
         let now = try date(year: 2026, month: 5, day: 13, hour: 9, minute: 15)
 
         let fields = QuickAddParser.parse(
-            "Renew policy tomorrow remind 1d before",
+            "Renew policy tomorrow !1d",
             calendar: calendar,
             now: now
         )
 
-        XCTAssertEqual(fields.title, "Renew policy remind 1d before")
-        XCTAssertNil(fields.earlyReminder)
+        XCTAssertEqual(fields.title, "Renew policy")
+        XCTAssertEqual(fields.earlyReminder?.reminderValue?.unit, .days)
     }
 
     func testDueDateEditorClearsRecurrence() throws {
@@ -1001,19 +1001,19 @@ final class QuickAddParserTests: XCTestCase {
 
     func testEarlyReminderRequiresTheFinalSelectedDueDateToIncludeTime() throws {
         let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
-        let notesInput = "Review remind 2h early // tomorrow at 5pm"
-        let dateOnlyInput = "Review remind 2h early tomorrow for the meeting at 5pm"
+        let notesInput = "Review !2h // tomorrow at 5pm"
+        let dateOnlyInput = "Review !2h tomorrow for the meeting at 5pm"
 
         let notes = QuickAddParser.parse(notesInput, calendar: calendar, now: now)
         let dateOnly = QuickAddParser.parse(dateOnlyInput, calendar: calendar, now: now)
 
-        XCTAssertEqual(notes.title, "Review remind 2h early")
+        XCTAssertEqual(notes.title, "Review")
         XCTAssertEqual(notes.inlineNotes, "tomorrow at 5pm")
         XCTAssertNil(notes.dueDate)
-        XCTAssertNil(notes.earlyReminder)
-        XCTAssertEqual(dateOnly.title, "Review remind 2h early for the meeting at 5pm")
+        XCTAssertEqual(notes.earlyReminder?.warning, "Add a date")
+        XCTAssertEqual(dateOnly.title, "Review for the meeting at 5pm")
         XCTAssertDate(dateOnly.dueDate, year: 2026, month: 8, day: 13, hour: nil, minute: nil)
-        XCTAssertNil(dateOnly.earlyReminder)
+        XCTAssertEqual(dateOnly.earlyReminder?.warning, "Add a time")
     }
 
     func testInvalidRecurrenceKeepsItsAssociatedTimeLiteral() throws {
@@ -1021,7 +1021,6 @@ final class QuickAddParserTests: XCTestCase {
         let inputs = [
             "Boom every 2147483648 days at 9am",
             "Boom every 2147483648 days https://example.com at 9am",
-            "Boom every 2147483648 days remind 30m early at 9am",
             "Review every Monday until tomorrow at 9am",
             "Review every day for 10001 occurrences at 9am"
         ]
@@ -1105,7 +1104,7 @@ final class QuickAddParserTests: XCTestCase {
     func testDueDateEditorReplacesScheduleAfterEarlyReminder() throws {
         let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
         let selectionDate = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 0)
-        let input = "Review remind 2h early tomorrow at 5pm"
+        let input = "Review !2h tomorrow at 5pm"
 
         let output = QuickAddDueDateTokenEditor.applying(
             QuickAddDueDateSelection(date: selectionDate, includesTime: true),
@@ -1115,16 +1114,16 @@ final class QuickAddParserTests: XCTestCase {
         ).text
         let fields = QuickAddParser.parse(output, calendar: calendar, now: now)
 
-        XCTAssertEqual(output, "Review remind 2h early 2026-08-14 3:00pm")
+        XCTAssertEqual(output, "Review !2h 2026-08-14 3:00pm")
         XCTAssertEqual(fields.title, "Review")
         XCTAssertDate(fields.dueDate, year: 2026, month: 8, day: 14, hour: 15, minute: 0)
-        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 2)!, unit: .hours))
+        XCTAssertEqual(fields.earlyReminder?.reminderValue, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 2)!, unit: .hours))
     }
 
     func testRecurrenceEndCanFollowOtherMetadata() throws {
         let now = try date(year: 2026, month: 8, day: 12, hour: 9, minute: 15)
         let inputs = [
-            "Review metrics every Monday at 9am remind 30m early until Sep 30 https://example.com",
+            "Review metrics every Monday at 9am !30m until Sep 30 https://example.com",
             "Review metrics every Monday at 9am https://example.com until Sep 30"
         ]
 
@@ -1302,7 +1301,7 @@ final class QuickAddParserTests: XCTestCase {
             now: now
         )
         let earlyReminder = QuickAddParser.parse(
-            "Submit tomorrow at 10am remind 30m early!",
+            "Submit tomorrow at 10am !30m!",
             calendar: calendar,
             now: now
         )
@@ -1314,7 +1313,7 @@ final class QuickAddParserTests: XCTestCase {
         )
         XCTAssertEqual(earlyReminder.title, "Submit")
         XCTAssertEqual(
-            earlyReminder.earlyReminder,
+            earlyReminder.earlyReminder?.reminderValue,
             ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 30)!, unit: .minutes)
         )
     }

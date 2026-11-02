@@ -265,16 +265,21 @@ enum QuickAddDurationParser {
     }
 
     static func spokenAmount(_ text: String) -> Double? {
-        switch text {
-        case "a", "an", "one":
-            return 1
-        case "two":
-            return 2
-        case "three":
-            return 3
-        default:
-            return Double(text)
+        if let amount = parseRelativeAmount(text) ?? spelledNumberValue(text) { return Double(amount) }
+        return Double(text)
+    }
+
+    static func eventLength(at index: Int, in words: QuickAddParseWords) -> (duration: QuickAddEventDuration, endIndex: Int)? {
+        guard let first = words.normalized(at: index) else { return nil }
+        if let compact = compactEventDuration(first) { return (compact, index) }
+        if first == "half", ["a", "an"].contains(words.normalized(at: index + 1)),
+           let unitText = words.normalized(at: index + 2), let unit = RelativeUnit(unitText),
+           let half = halfDuration(for: unit, endIndex: index + 2), half.unit == .minute {
+            return (.minutes(half.amount), half.endIndex)
         }
+        guard let amount = spokenAmount(first), let unit = words.normalized(at: index + 1),
+              let duration = eventDuration(amount: amount, unit: unit) else { return nil }
+        return (duration, index + 1)
     }
 
     static func eventDuration(amount: Double, unit: String) -> QuickAddEventDuration? {
@@ -304,7 +309,53 @@ enum QuickAddDurationParser {
         return .days(amount)
     }
 
+    static func earlyOffset(at index: Int, in source: QuickAddParseWords) -> QuickAddDurationMatch<EarlyOffsetSyntax>? {
+        guard let words = source.removingBang(at: index), let first = words.normalized(at: index) else { return nil }
+        let digits: String
+        let unit: ScheduleUnit
+        var endIndex: Int
+        if let match = first.firstMatch(of: /^(\d+)([a-z]+)$/), let parsedUnit = Self.unit(String(match.2)) {
+            digits = String(match.1); unit = parsedUnit; endIndex = index
+        } else if first == "half" {
+            var unitIndex = index + 1
+            if ["a", "an"].contains(words.normalized(at: unitIndex)) { unitIndex += 1 }
+            guard let unitText = words.normalized(at: unitIndex), let parsedUnit = RelativeUnit(unitText),
+                  let half = halfDuration(for: parsedUnit, endIndex: unitIndex) else { return nil }
+            digits = String(half.amount)
+            unit = half.unit == .minute ? .minutes : .hours
+            endIndex = unitIndex
+        } else {
+            let amount: (digits: String, endIndex: Int)?
+            if !first.isEmpty && first.utf8.allSatisfy({ (48...57).contains($0) }) {
+                amount = (first, index)
+            } else if first == "a" || first == "an" {
+                amount = ("1", index)
+            } else if let spoken = parseSpelledNumber(at: index, in: words) {
+                amount = (String(spoken.value), spoken.endIndex)
+            } else { amount = nil }
+            guard let amount, let unitText = words.normalized(at: amount.endIndex + 1),
+                  let parsedUnit = Self.unit(unitText) else { return nil }
+            digits = amount.digits; unit = parsedUnit; endIndex = amount.endIndex + 1
+        }
+        if words.normalized(at: endIndex + 1) == "before" { endIndex += 1 }
+        guard let range = words.contiguousRange(from: index, through: endIndex) else { return nil }
+        let value: EarlyOffsetSyntax
+        switch EarlyReminderAmount.parseDigits(digits) {
+        case let .valid(amount): value = .offset(ReminderEarlyReminder(amount: amount, unit: unit))
+        case .aboveMaximum: value = .tooLarge(digits: digits, unit: unit)
+        case .belowMinimum: value = .tooSmall(unit: unit)
+        case .notWholeNumber: return nil
+        }
+        return QuickAddDurationMatch(value: value, range: range, endIndex: endIndex)
+    }
+
     private static func normalizedToken(at index: Int, in tokens: QuickAddParseWords) -> String? {
         tokens.normalized(at: index)
     }
+}
+
+struct QuickAddDurationMatch<Value> {
+    let value: Value
+    let range: NSRange
+    let endIndex: Int
 }

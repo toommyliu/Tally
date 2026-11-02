@@ -1,7 +1,7 @@
 import Foundation
 
 /// A whitespace-delimited token and its UTF-16 range in the original Quick Add text.
-struct QuickAddScannedToken {
+fileprivate struct QuickAddScannedToken {
     let text: String
     let range: NSRange
     var eventTiming: QuickAddEventTimingToken? = nil
@@ -26,7 +26,7 @@ struct QuickAddCalendarDateMatch {
 enum QuickAddParsingSupport {
     private static let sentencePunctuation = CharacterSet(charactersIn: ".,;!?")
 
-    static func scanTokens(in input: String) -> [QuickAddScannedToken] {
+    fileprivate static func scanTokens(in input: String) -> [QuickAddScannedToken] {
         var tokens: [QuickAddScannedToken] = []
         var index = input.startIndex
 
@@ -458,7 +458,7 @@ enum QuickAddParsingSupport {
 }
 
 struct QuickAddParseWords {
-    enum Kind { case word, literal, suppressedMetadata, notes, eventTiming }
+    enum Kind { case word, earlyReminder, literal, suppressedMetadata, notes, eventTiming }
     struct Word {
         fileprivate let value: String?
         let range: NSRange
@@ -489,6 +489,14 @@ struct QuickAddParseWords {
         return QuickAddParsingSupport.union(storage[start].range, storage[end].range)
     }
 
+    func removingBang(at index: Int) -> Self? {
+        guard let value = word(at: index), value.hasPrefix("!"), !value.hasPrefix("!!") else { return nil }
+        var words = storage
+        let old = words[index]
+        words[index] = Word(value: String(value.dropFirst()), range: old.range, kind: .word, eventTiming: nil)
+        return Self(storage: words)
+    }
+
     var beforeNotes: Self {
         Self(storage: Array(storage.prefix { $0.kind != .notes }))
     }
@@ -503,6 +511,7 @@ struct QuickAddEventTimingMatch {
 struct QuickAddInput {
     private let source: String
     private let atoms: [QuickAddParseWords.Word]
+    let earlyReminder: EarlyReminderClause?
 
     static func read(_ source: String, suppressedTokens: [QuickAddSuppressedToken]) -> Self {
         var inNotes = false
@@ -526,7 +535,25 @@ struct QuickAddInput {
             return QuickAddParseWords.Word(value: inNotes ? nil : token.text, range: token.range,
                                            kind: inNotes ? .notes : .word, eventTiming: nil)
         }
-        return Self(source: source, atoms: atoms)
+        let words = QuickAddParseWords(storage: atoms)
+        var protected: [QuickAddParseWords.Word] = []
+        var clause: EarlyReminderClause?
+        var index = 0
+        while index < atoms.count {
+            if let word = words.word(at: index), word.hasPrefix("!") {
+                if let match = QuickAddDurationParser.earlyOffset(at: index, in: words) {
+                    let accepted = clause == nil
+                    if accepted { clause = EarlyReminderClause(value: match.value, range: match.range) }
+                    protected.append(.init(value: (source as NSString).substring(with: match.range), range: match.range,
+                                           kind: accepted ? .earlyReminder : .literal, eventTiming: nil))
+                    index = match.endIndex + 1
+                    continue
+                }
+                protected.append(.init(value: word, range: atoms[index].range, kind: .literal, eventTiming: nil))
+            } else { protected.append(atoms[index]) }
+            index += 1
+        }
+        return Self(source: source, atoms: protected, earlyReminder: clause)
     }
 
     var parsingWords: QuickAddParseWords { QuickAddParseWords(storage: atoms) }
@@ -536,7 +563,7 @@ struct QuickAddInput {
     }
 
     func titleFragments(in indices: ClosedRange<Int>) -> [String] {
-        indices.map { text(at: $0) }
+        indices.filter { atoms[$0].kind != .earlyReminder && atoms[$0].kind != .notes }.map { text(at: $0) }
     }
 
     func foldingEventTiming() -> Self {
@@ -551,6 +578,6 @@ struct QuickAddInput {
             index = match.endIndex + 1
         }
         folded.append(contentsOf: atoms[index...])
-        return Self(source: source, atoms: folded)
+        return Self(source: source, atoms: folded, earlyReminder: earlyReminder)
     }
 }

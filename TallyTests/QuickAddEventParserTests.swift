@@ -291,10 +291,10 @@ final class QuickAddEventParserTests: XCTestCase {
     }
 
     func testAlertAppliesToARangeStart() {
-        let fields = parse("Dentist tomorrow 2-3pm remind me 30m before")
+        let fields = parse("Dentist tomorrow 2-3pm !30m")
 
         XCTAssertEqual(fields.title, "Dentist")
-        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 30)!, unit: .minutes))
+        XCTAssertEqual(fields.earlyReminder?.eventValue?.secondsBeforeStart, 1800)
     }
 
     func testCalendarTokenAndPriorityInEventMode() {
@@ -416,18 +416,18 @@ final class QuickAddEventParserTests: XCTestCase {
         }
     }
 
-    func testPickingAllDayPreservesUntilDateAndRemovesTimedAlert() throws {
+    func testPickingAllDayPreservesUntilDateAndWarnsForTimedAlert() throws {
         let updated = QuickAddTokenEditor.applyingEventLength(
             .allDay,
-            to: "Gym every monday at 2pm until 2026-10-26 remind 30m early",
+            to: "Gym every monday at 2pm until 2026-10-26 !30m",
             calendar: calendar, now: now
         ).text
         let fields = parse(updated)
 
-        XCTAssertEqual(updated, "Gym every monday until 2026-10-26")
+        XCTAssertEqual(updated, "Gym every monday until 2026-10-26 !30m")
         XCTAssertEqual(fields.title, "Gym")
         XCTAssertEqual(fields.eventTiming?.isAllDay, true)
-        XCTAssertNil(fields.earlyReminder)
+        XCTAssertEqual(fields.earlyReminder?.warning, "Add a time")
         guard case let .date(end) = fields.recurrence?.end else {
             return XCTFail("Expected a recurrence end date")
         }

@@ -87,7 +87,7 @@ final class QuickAddDraftTests: XCTestCase {
     func testRequestIncludesRecurrenceEarlyReminderAndURL() throws {
         let settings = makeSettings()
         let draft = QuickAddDraft(settingsStore: settings)
-        draft.text = "Review metrics every Monday at 9am remind 30m early https://example.com/metrics"
+        draft.text = "Review metrics every Monday at 9am !30m https://example.com/metrics"
 
         let request = try XCTUnwrap(draft.makeReminderRequest())
 
@@ -172,14 +172,14 @@ final class QuickAddDraftTests: XCTestCase {
 
     func testCanKeepEarlyReminderAndURLTokensAsTitleText() throws {
         let draft = QuickAddDraft(settingsStore: makeSettings())
-        draft.text = "Review tomorrow at 9am remind 30m early https://example.com/review"
+        draft.text = "Review tomorrow at 9am !30m https://example.com/review"
 
         try keepToken(.earlyReminder, asTextIn: draft)
         try keepToken(.url, asTextIn: draft)
 
         XCTAssertEqual(
             draft.fields.title,
-            "Review remind 30m early https://example.com/review"
+            "Review !30m https://example.com/review"
         )
         XCTAssertNil(draft.fields.earlyReminder)
         XCTAssertNil(draft.fields.url)
@@ -206,13 +206,13 @@ final class QuickAddDraftTests: XCTestCase {
         XCTAssertEqual(urlDraft.fields.url, URL(string: "https://two.example"))
 
         let earlyReminderDraft = QuickAddDraft(settingsStore: makeSettings())
-        earlyReminderDraft.text = "Review tomorrow at 2pm remind 30m early"
+        earlyReminderDraft.text = "Review tomorrow at 2pm !30m"
         try keepToken(.earlyReminder, asTextIn: earlyReminderDraft)
-        earlyReminderDraft.text += " remind 2h before"
+        earlyReminderDraft.text += " !2h"
 
-        XCTAssertEqual(earlyReminderDraft.fields.title, "Review remind 30m early")
+        XCTAssertEqual(earlyReminderDraft.fields.title, "Review !30m")
         XCTAssertEqual(
-            earlyReminderDraft.fields.earlyReminder,
+            earlyReminderDraft.fields.earlyReminder?.reminderValue,
             ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 2)!, unit: .hours)
         )
     }
@@ -281,13 +281,13 @@ final class QuickAddDraftTests: XCTestCase {
         XCTAssertTrue(urlDraft.fields.title.contains("https://example.com"))
 
         let earlyDraft = QuickAddDraft(settingsStore: makeSettings())
-        earlyDraft.text = "Review every Monday at 9am remind 30m early until Sep 30"
+        earlyDraft.text = "Review every Monday at 9am !30m until Sep 30"
         try keepToken(.earlyReminder, asTextIn: earlyDraft)
         earlyDraft.applyDueDate(selection)
 
         XCTAssertNil(earlyDraft.fields.earlyReminder)
         XCTAssertEqual(earlyDraft.suppressedTokens.map(\.kind), [.earlyReminder])
-        XCTAssertTrue(earlyDraft.fields.title.contains("remind 30m early"))
+        XCTAssertTrue(earlyDraft.fields.title.contains("!30m"))
     }
 
     func testMetadataPickersPreserveSuppressedURLAcrossDuplicateTokens() throws {

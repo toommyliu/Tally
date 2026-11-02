@@ -67,6 +67,8 @@
 		AF14A5BA236EC779A3778772 /* QuickAddDurationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */; };
 		3AABA70557D9BBF139C0DB6E /* ScheduleOffset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F67FBF64E74658A1D4DB128 /* ScheduleOffset.swift */; };
 		736FC883B1826096C380C3E3 /* CalendarEventAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */; };
+		9D69096AE72C201ED245055E /* QuickAddEarlyReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */; };
+		42DE42FFAAE54136485159A9 /* QuickAddEarlyReminderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -146,6 +148,8 @@
 		AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddDurationParser.swift; sourceTree = "<group>"; };
 		4F67FBF64E74658A1D4DB128 /* ScheduleOffset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleOffset.swift; sourceTree = "<group>"; };
 		4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventAlert.swift; sourceTree = "<group>"; };
+		B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminder.swift; sourceTree = "<group>"; };
+		4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -220,6 +224,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000104 /* QuickAddParser.swift */,
+				B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */,
 				AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */,
 				C30000000000000000000102 /* QuickAddParsingSupport.swift */,
 				C30000000000000000000103 /* QuickAddReminderMetadataParser.swift */,
@@ -289,6 +294,7 @@
 			isa = PBXGroup;
 			children = (
 				10000000000000000000010B /* QuickAddParserTests.swift */,
+				4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */,
 				10000000000000000000011B /* AppSettingsStoreTests.swift */,
 				A10000000000000000000106 /* ReminderCreationRequestTests.swift */,
 				A10000000000000000000107 /* QuickAddDraftTests.swift */,
@@ -436,6 +442,7 @@
 			files = (
 				100000000000000000000001 /* TallyApp.swift in Sources */,
 				100000000000000000000004 /* QuickAddParser.swift in Sources */,
+				9D69096AE72C201ED245055E /* QuickAddEarlyReminder.swift in Sources */,
 				AF14A5BA236EC779A3778772 /* QuickAddDurationParser.swift in Sources */,
 				C30000000000000000000002 /* QuickAddParsingSupport.swift in Sources */,
 				C30000000000000000000003 /* QuickAddReminderMetadataParser.swift in Sources */,
@@ -488,6 +495,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000008 /* QuickAddParserTests.swift in Sources */,
+				42DE42FFAAE54136485159A9 /* QuickAddEarlyReminderTests.swift in Sources */,
 				100000000000000000000017 /* AppSettingsStoreTests.swift in Sources */,
 				A10000000000000000000006 /* ReminderCreationRequestTests.swift in Sources */,
 				A10000000000000000000007 /* QuickAddDraftTests.swift in Sources */,

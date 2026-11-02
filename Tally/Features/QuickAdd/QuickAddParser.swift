@@ -15,7 +15,7 @@ struct QuickAddFields: Equatable {
     var dueDate: DateComponents?
     var recurrence: ReminderRecurrence?
     var recurrenceTimeRange: NSRange? = nil
-    var earlyReminder: ReminderEarlyReminder?
+    var earlyReminder: QuickAddEarlyReminder?
     var url: URL?
     var priority: Int
     /// The event's start and end. Only set in event mode.
@@ -88,8 +88,6 @@ enum QuickAddParser {
         var dueDate: DateComponents?
         var recurrence: ReminderRecurrence?
         var recurrenceTimeRange: NSRange?
-        var earlyReminder: ReminderEarlyReminder?
-        var acceptedEarlyReminderRange: NSRange?
         var url: URL?
         var priority = 0
         var usedTokens: [QuickAddToken] = []
@@ -111,6 +109,7 @@ enum QuickAddParser {
             let token = tokens[index]
             let text = parsedInput.text(at: index)
 
+            if token.kind == .earlyReminder { index += 1; continue }
             if token.kind == .literal || token.kind == .suppressedMetadata {
                 titleTokens.append(text)
                 index += 1
@@ -190,21 +189,6 @@ enum QuickAddParser {
 
             if let match = detachedScheduleTokens.first(where: { $0.startIndex == index }) {
                 usedTokens.append(match.token)
-                index = match.endIndex + 1
-                continue
-            }
-
-            if let match = reminderMetadata.earlyReminders.first(where: {
-                $0.startIndex == index
-            }) {
-                if earlyReminder == nil {
-                    earlyReminder = match.earlyReminder
-                    acceptedEarlyReminderRange = match.range
-                    usedTokens.append(QuickAddToken(kind: .earlyReminder, range: match.range))
-                } else {
-                    titleTokens.append(contentsOf: parsedInput.titleFragments(in: index...match.endIndex))
-                }
-
                 index = match.endIndex + 1
                 continue
             }
@@ -295,18 +279,6 @@ enum QuickAddParser {
             eventRangeEnd = span.end
         }
 
-        if earlyReminder != nil,
-           dueDate?.hour == nil,
-           let suppression = suppression(of: .earlyReminder, at: acceptedEarlyReminderRange, in: input) {
-            return parse(
-                input,
-                mode: mode,
-                calendar: calendar,
-                now: now,
-                suppressedTokens: suppressedTokens + [suppression]
-            )
-        }
-
         let acceptedDuration = timeRange == nil ? durationCandidates.first {
             $0.duration.unit == .days || dueDate?.hour != nil
         } : nil
@@ -325,6 +297,13 @@ enum QuickAddParser {
             )
             : nil
 
+        let earlyReminder = syntax.earlyReminder.map {
+            EarlyReminderResolver.resolve($0,
+                target: mode == .reminder ? .reminder(dueDate: dueDate) : .event(timing: eventTiming),
+                context: QuickAddParseContext(calendar: calendar, now: now))
+        }
+        if let earlyReminder { usedTokens.append(earlyReminder.token) }
+
         return QuickAddFields(
             title: titleTokens.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines),
             listName: listName,
@@ -342,24 +321,6 @@ enum QuickAddParser {
         )
     }
 
-    private static func suppression(
-        of kind: QuickAddToken.Kind,
-        at range: NSRange?,
-        in input: String
-    ) -> QuickAddSuppressedToken? {
-        guard let range, NSMaxRange(range) <= (input as NSString).length else {
-            return nil
-        }
-
-        return QuickAddSuppressedToken(
-            kind: kind,
-            range: range,
-            text: (input as NSString).substring(with: range)
-        )
-    }
-
-    /// Places a typed time range on the parsed day, or on the next day the
-    /// start time occurs. An end at or before the start runs past midnight.
     private static func resolvedTimeRange(
         _ timeRange: (start: ParsedTime, end: QuickAddEventEnd),
         on day: DateComponents?,
@@ -1233,10 +1194,8 @@ enum QuickAddParser {
         var nextIndex = index + 1
 
         while true {
-            if let earlyReminder = metadata.earlyReminders.first(where: {
-                $0.startIndex == nextIndex
-            }) {
-                nextIndex = earlyReminder.endIndex + 1
+            if tokens.indices.contains(nextIndex), tokens[nextIndex].kind == .earlyReminder {
+                nextIndex += 1
                 continue
             }
 

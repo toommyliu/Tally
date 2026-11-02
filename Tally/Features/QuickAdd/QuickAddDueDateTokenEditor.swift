@@ -546,7 +546,7 @@ private extension QuickAddToken {
     }
 
     var isScheduleToken: Bool {
-        isDueDateToken || kind == .earlyReminder || kind == .duration
+        isDueDateToken || kind == .duration
     }
 }
 

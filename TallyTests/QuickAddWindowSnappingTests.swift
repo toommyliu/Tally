@@ -263,9 +263,19 @@ final class QuickAddWindowSnappingTests: XCTestCase {
 
 @MainActor
 final class QuickAddEscapeRoutingTests: XCTestCase {
-    func testEscapeDefersToTextEditorsBeforeClosingThePanel() {
-        XCTAssertTrue(QuickAddEscapeRouting.defersToFirstResponder(NSTextView()))
-        XCTAssertFalse(QuickAddEscapeRouting.defersToFirstResponder(NSButton()))
-        XCTAssertFalse(QuickAddEscapeRouting.defersToFirstResponder(nil))
+    func testEscapeDefersToAnotherKeyWindowRegardlessOfThePanelResponder() {
+        for responder: NSResponder? in [nil, NSResponder(), NSTextView(), NSButton()] {
+            XCTAssertFalse(QuickAddEscapeRouting.shouldClosePanel(hasOtherKeyWindow: true, firstResponder: responder))
+        }
+    }
+
+    func testEscapeDefersToTextEditorsWithoutAnotherKeyWindow() {
+        XCTAssertFalse(QuickAddEscapeRouting.shouldClosePanel(hasOtherKeyWindow: false, firstResponder: NSTextView()))
+    }
+
+    func testEscapeClosesThePanelOutsideTextWithoutAnotherKeyWindow() {
+        for responder: NSResponder? in [nil, NSResponder(), NSButton()] {
+            XCTAssertTrue(QuickAddEscapeRouting.shouldClosePanel(hasOtherKeyWindow: false, firstResponder: responder))
+        }
     }
 }

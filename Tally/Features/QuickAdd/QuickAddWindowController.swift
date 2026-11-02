@@ -178,15 +178,7 @@ final class QuickAddWindowController: NSObject, NSWindowDelegate {
                 return event
             }
 
-            // A SwiftUI popover owns a separate panel and should dismiss one level
-            // through its own onExitCommand handler.
-            if let eventWindow = event.window,
-               eventWindow !== panel,
-               eventWindow is NSPanel {
-                return event
-            }
-
-            if QuickAddEscapeRouting.defersToFirstResponder(panel.firstResponder) {
+            guard QuickAddEscapeRouting.shouldClosePanel(panel) else {
                 return event
             }
 
@@ -600,9 +592,19 @@ private extension NSRect {
 }
 
 enum QuickAddEscapeRouting {
-    /// Text editors receive Escape first so they can dismiss token recognition.
-    static func defersToFirstResponder(_ firstResponder: NSResponder?) -> Bool {
-        firstResponder is NSTextView
+    static func shouldClosePanel(_ panel: NSWindow) -> Bool {
+        shouldClosePanel(
+            hasOtherKeyWindow: otherKeyWindow(than: panel) != nil,
+            firstResponder: panel.firstResponder
+        )
+    }
+
+    static func otherKeyWindow(than panel: NSWindow) -> NSWindow? {
+        NSApp.windows.first { $0 !== panel && $0.isKeyWindow }
+    }
+
+    static func shouldClosePanel(hasOtherKeyWindow: Bool, firstResponder: NSResponder?) -> Bool {
+        !hasOtherKeyWindow && !(firstResponder is NSTextView)
     }
 }
 
@@ -620,8 +622,13 @@ private final class QuickAddPanel: NSPanel {
     }
 
     override func sendEvent(_ event: NSEvent) {
+        if [.keyDown, .keyUp].contains(event.type), let keyWindow = QuickAddEscapeRouting.otherKeyWindow(than: self) {
+            keyWindow.sendEvent(event)
+            return
+        }
+
         if Self.isPlainEscape(event),
-           !QuickAddEscapeRouting.defersToFirstResponder(firstResponder) {
+           QuickAddEscapeRouting.shouldClosePanel(self) {
             requestClose()
             return
         }

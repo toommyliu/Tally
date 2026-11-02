@@ -341,10 +341,7 @@ NSDictionary<NSString *, id> * _Nullable TallyReadReminderKitMetadata(
             return nil;
         }
         NSDictionary<NSString *, NSArray<NSString *> *> *selectors = @{
-            @"REMReminder": @[@"dueDateDeltaAlertContext"],
-            @"REMReminderDueDateDeltaAlertContext": @[@"dueDateDeltaAlerts"],
-            @"REMDueDateDeltaAlert": @[@"dueDateDelta"],
-            @"REMDueDateDeltaInterval": @[@"unit", @"count"]
+            @"REMReminderStorage": @[@"dueDateDeltaAlertsData"]
         };
         for (NSString *className in selectors) {
             if (!TallyVerifyReadSelectors(className, selectors[className], error)) {
@@ -352,40 +349,34 @@ NSDictionary<NSString *, id> * _Nullable TallyReadReminderKitMetadata(
             }
         }
         id nativeReminder = TallyReminderKitReminder(reminder);
-        if (nativeReminder == nil) {
+        Ivar storageIvar = nativeReminder == nil ? NULL : TallyFindIvar([nativeReminder class], "_storage");
+        id storage = storageIvar == NULL ? nil : object_getIvar(nativeReminder, storageIvar);
+        if (![storage isKindOfClass:NSClassFromString(@"REMReminderStorage")]) {
             TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
-                @"Could not access the fetched reminder's native fields.");
+                @"Could not access the fetched reminder's native storage.");
             return nil;
         }
-        id context = ((id (*)(id, SEL))objc_msgSend)(
-            nativeReminder, NSSelectorFromString(@"dueDateDeltaAlertContext"));
-        if (![context isKindOfClass:NSClassFromString(@"REMReminderDueDateDeltaAlertContext")]) {
-            TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
-                @"The fetched reminder has no native delta alert context.");
-            return nil;
-        }
-        id alerts = ((id (*)(id, SEL))objc_msgSend)(context, NSSelectorFromString(@"dueDateDeltaAlerts"));
-        if (![alerts isKindOfClass:[NSArray class]]) {
-            TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
-                @"The native delta alert collection has an unsupported type.");
-            return nil;
-        }
+        // EventKit's backing reminder leaves delta alerts unfetched, so the persisted JSON is the only copy.
+        NSData *data = ((id (*)(id, SEL))objc_msgSend)(storage, NSSelectorFromString(@"dueDateDeltaAlertsData"));
         NSMutableArray *deltas = [NSMutableArray array];
-        for (id alert in alerts) {
-            if (![alert isKindOfClass:NSClassFromString(@"REMDueDateDeltaAlert")]) {
+        if (data.length > 0) {
+            NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            NSArray *alerts = [payload isKindOfClass:[NSDictionary class]] ? payload[@"dueDateDeltaAlerts"] : nil;
+            if (![alerts isKindOfClass:[NSArray class]]) {
                 TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
-                    @"The fetched delta alert has an unsupported type.");
+                    @"The native delta alert data has an unsupported format.");
                 return nil;
             }
-            id delta = ((id (*)(id, SEL))objc_msgSend)(alert, NSSelectorFromString(@"dueDateDelta"));
-            if (![delta isKindOfClass:NSClassFromString(@"REMDueDateDeltaInterval")]) {
-                TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
-                    @"The fetched delta interval has an unsupported type.");
-                return nil;
+            for (NSDictionary *alert in alerts) {
+                NSNumber *unit = [alert isKindOfClass:[NSDictionary class]] ? alert[@"dueDateDeltaUnit"] : nil;
+                NSNumber *count = [alert isKindOfClass:[NSDictionary class]] ? alert[@"dueDateDeltaCount"] : nil;
+                if (![unit isKindOfClass:[NSNumber class]] || ![count isKindOfClass:[NSNumber class]]) {
+                    TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                        @"The native delta alert has an unsupported format.");
+                    return nil;
+                }
+                [deltas addObject:@{@"unit": unit, @"count": count}];
             }
-            NSInteger unit = ((NSInteger (*)(id, SEL))objc_msgSend)(delta, NSSelectorFromString(@"unit"));
-            NSInteger count = ((NSInteger (*)(id, SEL))objc_msgSend)(delta, NSSelectorFromString(@"count"));
-            [deltas addObject:@{@"unit": @(unit), @"count": @(count)}];
         }
         return @{@"deltaAlerts": deltas, @"selectors": selectors};
     } @catch (NSException *exception) {

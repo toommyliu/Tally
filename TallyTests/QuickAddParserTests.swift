@@ -1399,3 +1399,50 @@ final class QuickAddParserTests: XCTestCase {
         )
     }
 }
+
+extension QuickAddParserTests {
+    func testKeepingMetadataAsTextKeepsTheDetachedTime() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: 10))!
+        for (text, kind) in [("#Work", QuickAddToken.Kind.list), ("@work", .tag),
+                             ("https://example.com", .url), ("P1", .priority)] {
+            let input = "Review tomorrow \(text) at 9am"
+            let token = try XCTUnwrap(QuickAddParser.parse(input, calendar: calendar, now: now)
+                .usedTokens.first { $0.kind == kind })
+            let fields = QuickAddParser.parse(input, calendar: calendar, now: now,
+                suppressedTokens: [QuickAddSuppressedToken(kind: kind, range: token.range,
+                    text: (input as NSString).substring(with: token.range))])
+            XCTAssertEqual(fields.title, "Review \(text)", text)
+            XCTAssertEqual(fields.dueDate?.day, 1, text)
+            XCTAssertEqual(fields.dueDate?.hour, 9, text)
+            XCTAssertFalse(fields.usedTokens.contains { $0.kind == kind }, text)
+        }
+    }
+
+    func testKeepingMetadataAsTextKeepsTheRecurrenceEnd() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: 10))!
+        for (text, kind) in [("#Work", QuickAddToken.Kind.list), ("@work", .tag),
+                             ("https://example.com", .url), ("P1", .priority)] {
+            let input = "Review every Monday at 9am \(text) until Sep 30"
+            let token = try XCTUnwrap(QuickAddParser.parse(input, calendar: calendar, now: now)
+                .usedTokens.first { $0.kind == kind })
+            let fields = QuickAddParser.parse(input, calendar: calendar, now: now,
+                suppressedTokens: [QuickAddSuppressedToken(kind: kind, range: token.range,
+                    text: (input as NSString).substring(with: token.range))])
+            XCTAssertEqual(fields.title, "Review \(text)", text)
+            XCTAssertEqual(fields.dueDate?.hour, 9, text)
+            guard case let .date(end) = fields.recurrence?.end else {
+                XCTFail("Missing recurrence end after \(text)")
+                continue
+            }
+            XCTAssertEqual(end.year, 2027, text)
+            XCTAssertEqual(end.month, 9, text)
+            XCTAssertEqual(end.day, 30, text)
+            XCTAssertFalse(fields.usedTokens.contains { $0.kind == kind }, text)
+        }
+    }
+
+}

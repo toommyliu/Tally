@@ -64,6 +64,7 @@
 		A70000000000000000000006 /* CalendarEventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000106 /* CalendarEventStore.swift */; };
 		B80000000000000000000001 /* QuickAddEventParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80000000000000000000101 /* QuickAddEventParserTests.swift */; };
 		B80000000000000000000002 /* CalendarEventEventKitMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80000000000000000000102 /* CalendarEventEventKitMapperTests.swift */; };
+		AF14A5BA236EC779A3778772 /* QuickAddDurationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -140,6 +141,7 @@
 		A70000000000000000000106 /* CalendarEventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventStore.swift; sourceTree = "<group>"; };
 		B80000000000000000000101 /* QuickAddEventParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEventParserTests.swift; sourceTree = "<group>"; };
 		B80000000000000000000102 /* CalendarEventEventKitMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventEventKitMapperTests.swift; sourceTree = "<group>"; };
+		AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddDurationParser.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -214,6 +216,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000104 /* QuickAddParser.swift */,
+				AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */,
 				C30000000000000000000102 /* QuickAddParsingSupport.swift */,
 				C30000000000000000000103 /* QuickAddReminderMetadataParser.swift */,
 				10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */,
@@ -427,6 +430,7 @@
 			files = (
 				100000000000000000000001 /* TallyApp.swift in Sources */,
 				100000000000000000000004 /* QuickAddParser.swift in Sources */,
+				AF14A5BA236EC779A3778772 /* QuickAddDurationParser.swift in Sources */,
 				C30000000000000000000002 /* QuickAddParsingSupport.swift in Sources */,
 				C30000000000000000000003 /* QuickAddReminderMetadataParser.swift in Sources */,
 				100000000000000000000018 /* QuickAddDueDateTokenEditor.swift in Sources */,

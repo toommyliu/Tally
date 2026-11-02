@@ -556,3 +556,18 @@ final class QuickAddEventParserTests: XCTestCase {
         XCTAssertEqual(components.minute, minute, file: file, line: line)
     }
 }
+
+extension QuickAddEventParserTests {
+    func testUnsupportedRecurrenceKeepsEventTimingLiteral() {
+        for tail in ["2-3pm", "for 45m", "for 45m tomorrow"] {
+            let input = "Standup every \(tail)"
+            let fields = parse(input)
+            XCTAssertEqual(fields.title, input, input)
+            XCTAssertEqual(fields.eventTiming?.isAllDay, true, input)
+            XCTAssertEqual(fields.eventTiming?.start.day, 30, input)
+            XCTAssertNil(fields.eventDuration, input)
+            XCTAssertNil(fields.recurrence, input)
+            XCTAssertTrue(fields.usedTokens.isEmpty, input)
+        }
+    }
+}

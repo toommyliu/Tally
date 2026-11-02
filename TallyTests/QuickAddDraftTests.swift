@@ -473,3 +473,64 @@ final class QuickAddDraftTests: XCTestCase {
         )
     }
 }
+
+extension QuickAddDraftTests {
+    private var regressionCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        return calendar
+    }
+    private var regressionNow: Date { regressionCalendar.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: 10))! }
+
+    func testEveryFollowedByKeptMetadataKeepsTheRemainingScheduleLiteral() {
+        let cases: [(QuickAddToken.Kind, String)] = [
+            (.priority, "P1"), (.list, "#Home"), (.tag, "@work"), (.url, "https://a.com")
+        ]
+        for (kind, text) in cases {
+            for mode in [QuickAddMode.reminder, .event] {
+                let input = "Call every \(text) tomorrow at 5pm"
+                let fields = QuickAddParser.parse(input, mode: mode,
+                    calendar: regressionCalendar, now: regressionNow,
+                    suppressedTokens: [QuickAddSuppressedToken(kind: kind,
+                        range: (input as NSString).range(of: text), text: text)])
+                XCTAssertEqual(fields.title, input, text)
+                XCTAssertNil(fields.dueDate, text)
+                XCTAssertNil(fields.recurrence, text)
+                if mode == .event { XCTAssertEqual(fields.eventTiming?.isAllDay, true, text) }
+            }
+        }
+    }
+
+    func testEveryFollowedByPunctuationWordStillParsesTheDate() {
+        for word in ["!", "!!", "?", "..."] {
+            let input = "Call mom every \(word) tomorrow at 5pm"
+            let fields = QuickAddParser.parse(input, calendar: regressionCalendar, now: regressionNow)
+            XCTAssertEqual(fields.title, "Call mom every \(word)", input)
+            XCTAssertEqual(fields.dueDate?.day, 1, input)
+            XCTAssertEqual(fields.dueDate?.hour, 17, input)
+        }
+    }
+
+    func testEveryFollowedByPunctuationStillAllowsALaterRecurrence() {
+        let fields = QuickAddParser.parse("Call every ... every Monday at 9am",
+            calendar: regressionCalendar, now: regressionNow)
+        XCTAssertEqual(fields.title, "Call every ...")
+        XCTAssertEqual(fields.dueDate?.year, 2026)
+        XCTAssertEqual(fields.dueDate?.month, 10)
+        XCTAssertEqual(fields.dueDate?.day, 5)
+        XCTAssertEqual(fields.dueDate?.hour, 9)
+        XCTAssertEqual(fields.recurrence, ReminderRecurrence(frequency: .weekly, weekdays: [.monday]))
+    }
+
+    func testEveryFollowedByPunctuationStillAllowsEventTiming() {
+        let fields = QuickAddParser.parse("Standup every ! tomorrow 9am", mode: .event,
+            calendar: regressionCalendar, now: regressionNow)
+        XCTAssertEqual(fields.title, "Standup every !")
+        XCTAssertEqual(fields.eventTiming?.isAllDay, false)
+        XCTAssertEqual(fields.eventTiming?.start.year, 2026)
+        XCTAssertEqual(fields.eventTiming?.start.month, 10)
+        XCTAssertEqual(fields.eventTiming?.start.day, 1)
+        XCTAssertEqual(fields.eventTiming?.start.hour, 9)
+        XCTAssertEqual(fields.eventTiming?.end.hour, 10)
+    }
+}

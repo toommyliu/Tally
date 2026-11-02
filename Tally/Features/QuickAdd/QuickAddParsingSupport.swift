@@ -92,11 +92,11 @@ enum QuickAddParsingSupport {
     }
 
     /// Returns whether one scanned token is independently parsed reminder metadata.
-    static func isSingleTokenReminderMetadata(_ token: QuickAddScannedToken) -> Bool {
-        prefixedMetadataValue("#", in: token.text) != nil ||
-            trimmingSentencePunctuation(from: token.text) == "@" ||
-            prefixedMetadataValue("@", in: token.text) != nil ||
-            priority(for: token.text) != nil
+    static func isSingleTokenReminderMetadata(_ text: String) -> Bool {
+        prefixedMetadataValue("#", in: text) != nil ||
+            trimmingSentencePunctuation(from: text) == "@" ||
+            prefixedMetadataValue("@", in: text) != nil ||
+            priority(for: text) != nil
     }
 
     static func parseTime(_ token: String) -> QuickAddParsedTime? {
@@ -204,7 +204,7 @@ enum QuickAddParsingSupport {
     /// Parses the narrow date forms shared by due dates and recurrence endpoints.
     static func parseCalendarDate(
         at index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         calendar: Calendar,
         relativeTo referenceDate: Date
     ) -> QuickAddCalendarDateMatch? {
@@ -212,7 +212,7 @@ enum QuickAddParsingSupport {
             return nil
         }
 
-        let first = normalized(tokens[index].text)
+        let first = normalized(tokens.word(at: index) ?? "")
 
         if let components = isoDate(first, calendar: calendar) {
             return QuickAddCalendarDateMatch(
@@ -227,7 +227,7 @@ enum QuickAddParsingSupport {
             return nil
         }
 
-        let second = normalized(tokens[index + 1].text)
+        let second = normalized(tokens.word(at: index + 1) ?? "")
         let monthAndDay: (month: Int, day: Int)?
 
         if let month = monthNumber(for: first), let day = dayNumber(second) {
@@ -244,7 +244,7 @@ enum QuickAddParsingSupport {
 
         let yearIndex = index + 2
         let explicitYear = tokens.indices.contains(yearIndex)
-            ? parseExplicitYear(normalized(tokens[yearIndex].text))
+            ? parseExplicitYear(normalized(tokens.word(at: yearIndex) ?? ""))
             : nil
         let components: DateComponents?
 
@@ -281,13 +281,13 @@ enum QuickAddParsingSupport {
     /// Returns the token boundary for text shaped like a calendar date, even when invalid.
     static func calendarDateSyntaxEndIndex(
         at index: Int,
-        in tokens: [QuickAddScannedToken]
+        in tokens: QuickAddParseWords
     ) -> Int? {
         guard tokens.indices.contains(index) else {
             return nil
         }
 
-        let first = normalized(tokens[index].text)
+        let first = normalized(tokens.word(at: index) ?? "")
 
         if first.firstMatch(of: /^\d{4}-\d{2}-\d{2}$/) != nil {
             return index
@@ -298,7 +298,7 @@ enum QuickAddParsingSupport {
                 return index
             }
 
-            guard isDaySyntax(normalized(tokens[index + 1].text)) else {
+            guard isDaySyntax(normalized(tokens.word(at: index + 1) ?? "")) else {
                 return index
             }
 
@@ -307,7 +307,7 @@ enum QuickAddParsingSupport {
 
         guard isDaySyntax(first),
               tokens.indices.contains(index + 1),
-              monthNumber(for: normalized(tokens[index + 1].text)) != nil else {
+              monthNumber(for: normalized(tokens.word(at: index + 1) ?? "")) != nil else {
             return nil
         }
 
@@ -383,11 +383,11 @@ enum QuickAddParsingSupport {
 
     private static func explicitYearSyntaxEndIndex(
         after monthAndDayEndIndex: Int,
-        in tokens: [QuickAddScannedToken]
+        in tokens: QuickAddParseWords
     ) -> Int {
         let yearIndex = monthAndDayEndIndex + 1
         guard tokens.indices.contains(yearIndex),
-              parseExplicitYear(normalized(tokens[yearIndex].text)) != nil else {
+              parseExplicitYear(normalized(tokens.word(at: yearIndex) ?? "")) != nil else {
             return monthAndDayEndIndex
         }
 
@@ -454,5 +454,103 @@ enum QuickAddParsingSupport {
             [.calendar, .timeZone, .year, .month, .day],
             from: date
         )
+    }
+}
+
+struct QuickAddParseWords {
+    enum Kind { case word, literal, suppressedMetadata, notes, eventTiming }
+    struct Word {
+        fileprivate let value: String?
+        let range: NSRange
+        let kind: Kind
+        let eventTiming: QuickAddEventTimingToken?
+
+        var containsNonPunctuation: Bool {
+            value.map { !QuickAddParsingSupport.trimmingSentencePunctuation(from: $0).isEmpty } == true
+        }
+    }
+
+    fileprivate let storage: [Word]
+    var count: Int { storage.count }
+    var indices: Range<Int> { storage.indices }
+    subscript(index: Int) -> Word { storage[index] }
+
+    func word(at index: Int) -> String? {
+        indices.contains(index) && storage[index].kind == .word ? storage[index].value : nil
+    }
+
+    func normalized(at index: Int) -> String? {
+        word(at: index).map(QuickAddParsingSupport.normalized)
+    }
+
+    func contiguousRange(from start: Int, through end: Int) -> NSRange? {
+        guard indices.contains(start), indices.contains(end), start <= end,
+              (start...end).allSatisfy({ storage[$0].kind == .word }) else { return nil }
+        return QuickAddParsingSupport.union(storage[start].range, storage[end].range)
+    }
+
+    var beforeNotes: Self {
+        Self(storage: Array(storage.prefix { $0.kind != .notes }))
+    }
+}
+
+struct QuickAddEventTimingMatch {
+    let timing: QuickAddEventTimingToken
+    let startIndex: Int
+    let endIndex: Int
+}
+
+struct QuickAddInput {
+    private let source: String
+    private let atoms: [QuickAddParseWords.Word]
+
+    static func read(_ source: String, suppressedTokens: [QuickAddSuppressedToken]) -> Self {
+        var inNotes = false
+        let atoms = QuickAddParsingSupport.scanTokens(in: source).map { token in
+            let suppression = suppressedTokens.first {
+                NSIntersectionRange($0.range, token.range).length > 0 &&
+                    NSMaxRange($0.range) <= (source as NSString).length &&
+                    (source as NSString).substring(with: $0.range) == $0.text
+            }
+            if let suppression, !inNotes {
+                let kind: QuickAddParseWords.Kind
+                switch suppression.kind {
+                case .list, .tag, .url, .priority:
+                    kind = .suppressedMetadata
+                default:
+                    kind = .literal
+                }
+                return QuickAddParseWords.Word(value: token.text, range: token.range, kind: kind, eventTiming: nil)
+            }
+            inNotes = inNotes || token.text.hasPrefix("//")
+            return QuickAddParseWords.Word(value: inNotes ? nil : token.text, range: token.range,
+                                           kind: inNotes ? .notes : .word, eventTiming: nil)
+        }
+        return Self(source: source, atoms: atoms)
+    }
+
+    var parsingWords: QuickAddParseWords { QuickAddParseWords(storage: atoms) }
+
+    func text(at index: Int) -> String {
+        (source as NSString).substring(with: atoms[index].range)
+    }
+
+    func titleFragments(in indices: ClosedRange<Int>) -> [String] {
+        indices.map { text(at: $0) }
+    }
+
+    func foldingEventTiming() -> Self {
+        let words = parsingWords
+        let matches = QuickAddEventTimingParser.matches(in: words)
+        var folded: [QuickAddParseWords.Word] = []
+        var index = 0
+        for match in matches {
+            folded.append(contentsOf: atoms[index..<match.startIndex])
+            let range = words.contiguousRange(from: match.startIndex, through: match.endIndex)!
+            folded.append(.init(value: nil, range: range, kind: .eventTiming, eventTiming: match.timing))
+            index = match.endIndex + 1
+        }
+        folded.append(contentsOf: atoms[index...])
+        return Self(source: source, atoms: folded)
     }
 }

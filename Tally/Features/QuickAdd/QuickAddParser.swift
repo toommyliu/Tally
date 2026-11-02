@@ -97,17 +97,9 @@ enum QuickAddParser {
         var detachedScheduleTokens: [ScheduleTokenMatch] = []
         var timeRange: (start: ParsedTime, end: QuickAddEventEnd)?
         var durationCandidates: [(duration: QuickAddEventDuration, range: NSRange, titleIndex: Int)] = []
-        let scannedTokens = QuickAddParsingSupport.scanTokens(in: input)
-        var tokens = mode == .event
-            ? QuickAddEventTimingParser.parse(scannedTokens, in: input)
-            : scannedTokens
-        if !suppressedTokens.isEmpty {
-            for index in tokens.indices where isInsideSuppressedToken(
-                tokens[index], in: input, suppressedTokens: suppressedTokens
-            ) {
-                tokens[index].eventTiming = nil
-            }
-        }
+        let syntax = QuickAddInput.read(input, suppressedTokens: suppressedTokens)
+        let parsedInput = mode == .event ? syntax.foldingEventTiming() : syntax
+        let tokens = parsedInput.parsingWords
         let reminderMetadata = QuickAddReminderMetadataParser.parse(
             tokens: tokens,
             calendar: calendar,
@@ -117,14 +109,15 @@ enum QuickAddParser {
 
         while index < tokens.count {
             let token = tokens[index]
+            let text = parsedInput.text(at: index)
 
-            if isInsideSuppressedToken(token, in: input, suppressedTokens: suppressedTokens) {
-                titleTokens.append(token.text)
+            if token.kind == .literal || token.kind == .suppressedMetadata {
+                titleTokens.append(text)
                 index += 1
                 continue
             }
 
-            if tokenStartsInlineNotes(token) {
+            if text.hasPrefix("//") {
                 inlineNotes = noteText(from: token, in: input)
                 usedTokens.append(QuickAddToken(kind: .note, range: noteRange(from: token, in: input)))
                 break
@@ -137,9 +130,9 @@ enum QuickAddParser {
                     usedTokens.append(QuickAddToken(kind: .timeRange, range: token.range))
                 case let .duration(duration):
                     durationCandidates.append((duration, token.range, titleTokens.count))
-                    titleTokens.append(token.text)
+                    titleTokens.append(text)
                 default:
-                    titleTokens.append(token.text)
+                    titleTokens.append(text)
                 }
 
                 index += 1
@@ -149,7 +142,7 @@ enum QuickAddParser {
             if let match = reminderMetadata.invalidRecurrences.first(where: {
                 $0.startIndex == index
             }) {
-                titleTokens.append(contentsOf: tokens[index...match.endIndex].map(\.text))
+                titleTokens.append(contentsOf: parsedInput.titleFragments(in: index...match.endIndex))
                 index = match.endIndex + 1
                 continue
             }
@@ -209,7 +202,7 @@ enum QuickAddParser {
                     acceptedEarlyReminderRange = match.range
                     usedTokens.append(QuickAddToken(kind: .earlyReminder, range: match.range))
                 } else {
-                    titleTokens.append(contentsOf: tokens[index...match.endIndex].map(\.text))
+                    titleTokens.append(contentsOf: parsedInput.titleFragments(in: index...match.endIndex))
                 }
 
                 index = match.endIndex + 1
@@ -228,7 +221,7 @@ enum QuickAddParser {
 
             if let encodedListName = QuickAddParsingSupport.prefixedMetadataValue(
                 "#",
-                in: token.text
+                in: text
             ) {
                 listName = QuickAddListTokenCodec.decode(encodedListName)
                 usedTokens.append(QuickAddToken(kind: .list, range: token.range))
@@ -236,13 +229,13 @@ enum QuickAddParser {
                 continue
             }
 
-            if QuickAddParsingSupport.trimmingSentencePunctuation(from: token.text) == "@" {
+            if QuickAddParsingSupport.trimmingSentencePunctuation(from: text) == "@" {
                 usedTokens.append(QuickAddToken(kind: .tag, range: token.range))
                 index += 1
                 continue
             }
 
-            if let tag = QuickAddParsingSupport.prefixedMetadataValue("@", in: token.text) {
+            if let tag = QuickAddParsingSupport.prefixedMetadataValue("@", in: text) {
                 tags.append(tag)
                 usedTokens.append(QuickAddToken(kind: .tag, range: token.range))
                 index += 1
@@ -250,7 +243,7 @@ enum QuickAddParser {
             }
 
             if mode == .reminder,
-               let parsedPriority = QuickAddParsingSupport.priority(for: token.text) {
+               let parsedPriority = QuickAddParsingSupport.priority(for: text) {
                 priority = parsedPriority
                 usedTokens.append(QuickAddToken(kind: .priority, range: token.range))
                 index += 1
@@ -291,7 +284,7 @@ enum QuickAddParser {
                 continue
             }
 
-            titleTokens.append(token.text)
+            titleTokens.append(text)
             index += 1
         }
 
@@ -480,22 +473,12 @@ enum QuickAddParser {
 
     private typealias ParsedTime = QuickAddParsedTime
 
-    private struct RelativeDurationMatch {
-        var amount: Int
-        var unit: RelativeUnit
-        var endIndex: Int
-    }
-
-    private static func tokenStartsInlineNotes(_ token: QuickAddScannedToken) -> Bool {
-        token.text.hasPrefix("//")
-    }
-
-    private static func noteRange(from token: QuickAddScannedToken, in input: String) -> NSRange {
+    private static func noteRange(from token: QuickAddParseWords.Word, in input: String) -> NSRange {
         let fullLength = (input as NSString).length
         return NSRange(location: token.range.location, length: fullLength - token.range.location)
     }
 
-    private static func noteText(from token: QuickAddScannedToken, in input: String) -> String? {
+    private static func noteText(from token: QuickAddParseWords.Word, in input: String) -> String? {
         let fullText = input as NSString
         let fullLength = fullText.length
         let noteStart = token.range.location + 2
@@ -512,7 +495,7 @@ enum QuickAddParser {
     }
 
     private static func isInsideSuppressedToken(
-        _ token: QuickAddScannedToken,
+        _ token: QuickAddParseWords.Word,
         in input: String,
         suppressedTokens: [QuickAddSuppressedToken]
     ) -> Bool {
@@ -530,7 +513,7 @@ enum QuickAddParser {
 
     private static func isInsideUnmatchedRecurrenceEndDate(
         at index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         calendar: Calendar,
         now: Date
     ) -> Bool {
@@ -555,7 +538,7 @@ enum QuickAddParser {
 
     private static func parseScheduleExpression(
         at index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         metadata: QuickAddReminderMetadataMatches,
         calendar: Calendar,
         now: Date
@@ -684,7 +667,7 @@ enum QuickAddParser {
 
     private static func parseBaseDateExpression(
         at index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         calendar: Calendar,
         now: Date
     ) -> BaseDateMatch? {
@@ -796,7 +779,7 @@ enum QuickAddParser {
             )
         }
 
-        if let parsedDueDate = parseDueDate(tokens[index].text, calendar: calendar, now: now) {
+        if let parsedDueDate = parseDueDate((tokens.word(at: index) ?? ""), calendar: calendar, now: now) {
             return BaseDateMatch(
                 components: parsedDueDate,
                 range: tokens[index].range,
@@ -830,7 +813,7 @@ enum QuickAddParser {
 
     private static func parseDaypartExpression(
         at index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         calendar: Calendar,
         now: Date
     ) -> ScheduleMatch? {
@@ -860,16 +843,16 @@ enum QuickAddParser {
 
     private static func parseSignedRelativeDuration(
         at index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         calendar: Calendar,
         now: Date
     ) -> ScheduleMatch? {
         guard let amountToken = normalizedToken(at: index, in: tokens),
               amountToken.hasPrefix("+"),
-              let amount = parseRelativeAmount(amountToken),
+              let amount = QuickAddDurationParser.parseRelativeAmount(amountToken),
               amount > 0,
               let unitToken = normalizedToken(at: index + 1, in: tokens),
-              let unit = RelativeUnit(unitToken) else {
+              let unit = QuickAddDurationParser.RelativeUnit(unitToken) else {
             return nil
         }
 
@@ -895,15 +878,15 @@ enum QuickAddParser {
 
     private static func parseDateMathExpression(
         at index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         calendar: Calendar,
         now: Date
     ) -> ScheduleMatch? {
         guard let amountToken = normalizedToken(at: index, in: tokens),
-              let amount = parseRelativeAmount(amountToken),
+              let amount = QuickAddDurationParser.parseRelativeAmount(amountToken),
               amount > 0,
               let unitToken = normalizedToken(at: index + 1, in: tokens),
-              let unit = RelativeUnit(unitToken),
+              let unit = QuickAddDurationParser.RelativeUnit(unitToken),
               let direction = normalizedToken(at: index + 2, in: tokens),
               direction == "from" || direction == "after" || direction == "before",
               let baseDate = parseBaseDateExpression(at: index + 3, in: tokens, calendar: calendar, now: now),
@@ -1023,7 +1006,7 @@ enum QuickAddParser {
 
     private static func parseRelativeDate(
         at index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         calendar: Calendar,
         now: Date
     ) -> (components: DateComponents, kind: QuickAddToken.Kind, range: NSRange, endIndex: Int)? {
@@ -1061,7 +1044,7 @@ enum QuickAddParser {
             break
         }
 
-        if let compactDuration = parseCompactDuration(normalized ?? ""),
+        if let compactDuration = QuickAddDurationParser.parseCompactDuration(normalized ?? ""),
            compactDuration.amount > 0 {
             return relativeDuration(
                 amount: compactDuration.amount,
@@ -1123,7 +1106,7 @@ enum QuickAddParser {
         }
 
         if normalized == "in",
-           let duration = parseRelativeDurationPhrase(at: index + 1, in: tokens),
+           let duration = QuickAddDurationParser.parseRelativeDurationPhrase(at: index + 1, in: tokens),
            duration.amount > 0 {
             return relativeDuration(
                 amount: duration.amount,
@@ -1138,221 +1121,9 @@ enum QuickAddParser {
         return nil
     }
 
-    private static func parseRelativeAmount(_ token: String) -> Int? {
-        let normalized = token.hasPrefix("+") ? String(token.dropFirst()) : token
-
-        switch normalized {
-        case "a", "an", "one":
-            return 1
-        default:
-            return Int(normalized)
-        }
-    }
-
-    private static func parseRelativeDurationPhrase(
-        at index: Int,
-        in tokens: [QuickAddScannedToken]
-    ) -> RelativeDurationMatch? {
-        guard let firstToken = normalizedToken(at: index, in: tokens) else {
-            return nil
-        }
-
-        if let compactDuration = parseCompactDuration(firstToken) {
-            return RelativeDurationMatch(
-                amount: compactDuration.amount,
-                unit: compactDuration.unit,
-                endIndex: index
-            )
-        }
-
-        if firstToken == "half" {
-            if let unitToken = normalizedToken(at: index + 1, in: tokens),
-               let unit = RelativeUnit(unitToken) {
-                return halfDuration(for: unit, endIndex: index + 1)
-            }
-
-            if (normalizedToken(at: index + 1, in: tokens) == "an" ||
-                normalizedToken(at: index + 1, in: tokens) == "a"),
-               let unitToken = normalizedToken(at: index + 2, in: tokens),
-               let unit = RelativeUnit(unitToken) {
-                return halfDuration(for: unit, endIndex: index + 2)
-            }
-        }
-
-        guard let amount = parseRelativeAmountExpression(at: index, in: tokens),
-              let unitToken = normalizedToken(at: amount.endIndex + 1, in: tokens),
-              let unit = RelativeUnit(unitToken) else {
-            return nil
-        }
-
-        return RelativeDurationMatch(amount: amount.value, unit: unit, endIndex: amount.endIndex + 1)
-    }
-
-    private static func halfDuration(for unit: RelativeUnit, endIndex: Int) -> RelativeDurationMatch? {
-        switch unit {
-        case .minute:
-            return nil
-        case .hour:
-            return RelativeDurationMatch(amount: 30, unit: .minute, endIndex: endIndex)
-        case .day:
-            return RelativeDurationMatch(amount: 12, unit: .hour, endIndex: endIndex)
-        case .week:
-            return nil
-        }
-    }
-
-    private static func parseRelativeAmountExpression(
-        at index: Int,
-        in tokens: [QuickAddScannedToken]
-    ) -> (value: Int, endIndex: Int)? {
-        guard let firstToken = normalizedToken(at: index, in: tokens) else {
-            return nil
-        }
-
-        if (firstToken == "a" || firstToken == "an"),
-           let secondToken = normalizedToken(at: index + 1, in: tokens),
-           let fuzzy = parseFuzzyRelativeAmount(secondToken) {
-            return (fuzzy, optionalOfEndIndex(after: index + 1, in: tokens))
-        }
-
-        if let fuzzy = parseFuzzyRelativeAmount(firstToken) {
-            return (fuzzy, optionalOfEndIndex(after: index, in: tokens))
-        }
-
-        if let amount = parseRelativeAmount(firstToken) {
-            return (amount, index)
-        }
-
-        return parseSpelledNumber(at: index, in: tokens)
-    }
-
-    private static func parseFuzzyRelativeAmount(_ token: String) -> Int? {
-        switch token {
-        case "couple":
-            return 2
-        case "few":
-            return 3
-        default:
-            return nil
-        }
-    }
-
-    private static func optionalOfEndIndex(after index: Int, in tokens: [QuickAddScannedToken]) -> Int {
-        normalizedToken(at: index + 1, in: tokens) == "of" ? index + 1 : index
-    }
-
-    private static func parseSpelledNumber(
-        at index: Int,
-        in tokens: [QuickAddScannedToken]
-    ) -> (value: Int, endIndex: Int)? {
-        guard let firstToken = normalizedToken(at: index, in: tokens),
-              let firstValue = spelledNumberValue(firstToken) else {
-            return nil
-        }
-
-        if firstValue >= 20,
-           firstValue % 10 == 0,
-           let secondToken = normalizedToken(at: index + 1, in: tokens),
-           let secondValue = spelledNumberValue(secondToken),
-           (1...9).contains(secondValue) {
-            return (firstValue + secondValue, index + 1)
-        }
-
-        return (firstValue, index)
-    }
-
-    private static func spelledNumberValue(_ token: String) -> Int? {
-        let normalized = token.replacingOccurrences(of: "-", with: " ")
-
-        if normalized.contains(" ") {
-            let parts = normalized.split(separator: " ").map(String.init)
-            guard parts.count == 2,
-                  let tens = spelledNumberValue(parts[0]),
-                  tens >= 20,
-                  tens % 10 == 0,
-                  let ones = spelledNumberValue(parts[1]),
-                  (1...9).contains(ones) else {
-                return nil
-            }
-
-            return tens + ones
-        }
-
-        switch normalized {
-        case "zero":
-            return 0
-        case "one":
-            return 1
-        case "two":
-            return 2
-        case "three":
-            return 3
-        case "four":
-            return 4
-        case "five":
-            return 5
-        case "six":
-            return 6
-        case "seven":
-            return 7
-        case "eight":
-            return 8
-        case "nine":
-            return 9
-        case "ten":
-            return 10
-        case "eleven":
-            return 11
-        case "twelve":
-            return 12
-        case "thirteen":
-            return 13
-        case "fourteen":
-            return 14
-        case "fifteen":
-            return 15
-        case "sixteen":
-            return 16
-        case "seventeen":
-            return 17
-        case "eighteen":
-            return 18
-        case "nineteen":
-            return 19
-        case "twenty":
-            return 20
-        case "thirty":
-            return 30
-        case "forty":
-            return 40
-        case "fifty":
-            return 50
-        case "sixty":
-            return 60
-        case "seventy":
-            return 70
-        case "eighty":
-            return 80
-        case "ninety":
-            return 90
-        default:
-            return nil
-        }
-    }
-
-    private static func parseCompactDuration(_ token: String) -> (amount: Int, unit: RelativeUnit)? {
-        guard let match = token.firstMatch(of: /^\+?(\d+)(m|mins?|h|hrs?|d|w)$/),
-              let amount = Int(match.1),
-              let unit = RelativeUnit(String(match.2)) else {
-            return nil
-        }
-
-        return (amount, unit)
-    }
-
     private static func relativeDuration(
         amount: Int,
-        unit: RelativeUnit,
+        unit: QuickAddDurationParser.RelativeUnit,
         from now: Date,
         range: NSRange,
         endIndex: Int,
@@ -1382,34 +1153,12 @@ enum QuickAddParser {
         }
     }
 
-    private enum RelativeUnit {
-        case minute
-        case hour
-        case day
-        case week
-
-        init?(_ token: String) {
-            switch token {
-            case "m", "minute", "minutes", "min", "mins":
-                self = .minute
-            case "h", "hour", "hours", "hr", "hrs":
-                self = .hour
-            case "d", "day", "days":
-                self = .day
-            case "w", "week", "weeks":
-                self = .week
-            default:
-                return nil
-            }
-        }
-    }
-
-    private static func normalizedToken(at index: Int, in tokens: [QuickAddScannedToken]) -> String? {
+    private static func normalizedToken(at index: Int, in tokens: QuickAddParseWords) -> String? {
         guard tokens.indices.contains(index) else {
             return nil
         }
 
-        return QuickAddParsingSupport.normalized(tokens[index].text)
+        return QuickAddParsingSupport.normalized(tokens.word(at: index) ?? "")
     }
 
     private static func fixedTime(forPeriod period: String) -> (hour: Int, minute: Int)? {
@@ -1429,7 +1178,7 @@ enum QuickAddParser {
 
     private static func followingTimeExpression(
         after index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         metadata: QuickAddReminderMetadataMatches
     ) -> (time: ParsedTime, range: NSRange, startIndex: Int, endIndex: Int)? {
         let nextIndex = nextScheduleIndex(
@@ -1442,11 +1191,11 @@ enum QuickAddParser {
             return nil
         }
 
-        if tokens[nextIndex].text.lowercased() == "at" {
+        if (tokens.word(at: nextIndex) ?? "").lowercased() == "at" {
             let timeIndex = nextIndex + 1
 
             guard timeIndex < tokens.count,
-                  let time = parseTime(tokens[timeIndex].text) else {
+                  let time = parseTime((tokens.word(at: timeIndex) ?? "")) else {
                 return nil
             }
 
@@ -1468,7 +1217,7 @@ enum QuickAddParser {
             )
         }
 
-        guard let time = parseTime(tokens[nextIndex].text),
+        guard let time = parseTime((tokens.word(at: nextIndex) ?? "")),
               time.hasMeridiem || time.hasColon else {
             return nil
         }
@@ -1478,7 +1227,7 @@ enum QuickAddParser {
 
     private static func nextScheduleIndex(
         after index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         metadata: QuickAddReminderMetadataMatches
     ) -> Int {
         var nextIndex = index + 1
@@ -1498,7 +1247,8 @@ enum QuickAddParser {
             }
 
             if tokens.indices.contains(nextIndex),
-               QuickAddParsingSupport.isSingleTokenReminderMetadata(tokens[nextIndex]) {
+               (tokens[nextIndex].kind == .suppressedMetadata ||
+                QuickAddParsingSupport.isSingleTokenReminderMetadata(tokens.word(at: nextIndex) ?? "")) {
                 nextIndex += 1
                 continue
             }
@@ -1509,11 +1259,11 @@ enum QuickAddParser {
 
     private static func parseTimeOnlyExpression(
         at index: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         calendar: Calendar,
         now: Date
     ) -> ScheduleMatch? {
-        guard let parsedTime = parseTime(tokens[index].text),
+        guard let parsedTime = parseTime((tokens.word(at: index) ?? "")),
               parsedTime.hasMeridiem || parsedTime.hasColon else {
             return nil
         }

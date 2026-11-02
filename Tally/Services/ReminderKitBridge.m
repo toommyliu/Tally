@@ -305,3 +305,93 @@ BOOL TallyApplyReminderKitMetadata(
         );
     }
 }
+
+#if DEBUG
+static BOOL TallyVerifyReadSelectors(
+    NSString *className,
+    NSArray<NSString *> *selectors,
+    NSError **error
+) {
+    Class objectClass = NSClassFromString(className);
+    NSMutableSet<NSString *> *methods = [NSMutableSet set];
+    for (Class current = objectClass; current != Nil; current = class_getSuperclass(current)) {
+        unsigned int count = 0;
+        Method *listedMethods = class_copyMethodList(current, &count);
+        for (unsigned int index = 0; index < count; index++) {
+            [methods addObject:NSStringFromSelector(method_getName(listedMethods[index]))];
+        }
+        free(listedMethods);
+    }
+    for (NSString *selector in selectors) {
+        if (![methods containsObject:selector]) {
+            return TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                [NSString stringWithFormat:@"%@ is missing read selector %@.", className, selector]);
+        }
+    }
+    return YES;
+}
+
+NSDictionary<NSString *, id> * _Nullable TallyReadReminderKitMetadata(
+    EKReminder *reminder,
+    NSError * _Nullable * _Nullable error
+) {
+    @try {
+        if (!TallyLoadReminderKit()) {
+            TallyReminderKitFail(error, TallyReminderKitErrorUnavailable, @"Could not load ReminderKit.");
+            return nil;
+        }
+        NSDictionary<NSString *, NSArray<NSString *> *> *selectors = @{
+            @"REMReminder": @[@"dueDateDeltaAlertContext"],
+            @"REMReminderDueDateDeltaAlertContext": @[@"dueDateDeltaAlerts"],
+            @"REMDueDateDeltaAlert": @[@"dueDateDelta"],
+            @"REMDueDateDeltaInterval": @[@"unit", @"count"]
+        };
+        for (NSString *className in selectors) {
+            if (!TallyVerifyReadSelectors(className, selectors[className], error)) {
+                return nil;
+            }
+        }
+        id nativeReminder = TallyReminderKitReminder(reminder);
+        if (nativeReminder == nil) {
+            TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                @"Could not access the fetched reminder's native fields.");
+            return nil;
+        }
+        id context = ((id (*)(id, SEL))objc_msgSend)(
+            nativeReminder, NSSelectorFromString(@"dueDateDeltaAlertContext"));
+        if (![context isKindOfClass:NSClassFromString(@"REMReminderDueDateDeltaAlertContext")]) {
+            TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                @"The fetched reminder has no native delta alert context.");
+            return nil;
+        }
+        id alerts = ((id (*)(id, SEL))objc_msgSend)(context, NSSelectorFromString(@"dueDateDeltaAlerts"));
+        if (![alerts isKindOfClass:[NSArray class]]) {
+            TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                @"The native delta alert collection has an unsupported type.");
+            return nil;
+        }
+        NSMutableArray *deltas = [NSMutableArray array];
+        for (id alert in alerts) {
+            if (![alert isKindOfClass:NSClassFromString(@"REMDueDateDeltaAlert")]) {
+                TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                    @"The fetched delta alert has an unsupported type.");
+                return nil;
+            }
+            id delta = ((id (*)(id, SEL))objc_msgSend)(alert, NSSelectorFromString(@"dueDateDelta"));
+            if (![delta isKindOfClass:NSClassFromString(@"REMDueDateDeltaInterval")]) {
+                TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                    @"The fetched delta interval has an unsupported type.");
+                return nil;
+            }
+            NSInteger unit = ((NSInteger (*)(id, SEL))objc_msgSend)(delta, NSSelectorFromString(@"unit"));
+            NSInteger count = ((NSInteger (*)(id, SEL))objc_msgSend)(delta, NSSelectorFromString(@"count"));
+            [deltas addObject:@{@"unit": @(unit), @"count": @(count)}];
+        }
+        return @{@"deltaAlerts": deltas, @"selectors": selectors};
+    } @catch (NSException *exception) {
+        TallyReminderKitFail(error, TallyReminderKitErrorException,
+            [NSString stringWithFormat:@"Could not read native metadata: %@", exception.reason]);
+        return nil;
+    }
+}
+#endif

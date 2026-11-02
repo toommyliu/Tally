@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+TALLY_XCODE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${TALLY_XCODE_LIB_DIR}/../.." && pwd)"
 
 PROJECT_PATH="${REPO_ROOT}/Tally.xcodeproj"
 SCHEME="Tally"

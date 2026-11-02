@@ -70,6 +70,7 @@
 		9D69096AE72C201ED245055E /* QuickAddEarlyReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */; };
 		42DE42FFAAE54136485159A9 /* QuickAddEarlyReminderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */; };
 		88042B89C028E130ABF3E12E /* QuickAddEarlyReminderPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF455A640EDB939B5426E5EC /* QuickAddEarlyReminderPopover.swift */; };
+		AA0100000000000000000001 /* NativeReminderSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0100000000000000000002 /* NativeReminderSelfTest.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -152,6 +153,7 @@
 		B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminder.swift; sourceTree = "<group>"; };
 		4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminderTests.swift; sourceTree = "<group>"; };
 		BF455A640EDB939B5426E5EC /* QuickAddEarlyReminderPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminderPopover.swift; sourceTree = "<group>"; };
+		AA0100000000000000000002 /* NativeReminderSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeReminderSelfTest.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -198,6 +200,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000101 /* TallyApp.swift */,
+				AA0100000000000000000002 /* NativeReminderSelfTest.swift */,
 				10000000000000000000010D /* AppController.swift */,
 			);
 			path = App;
@@ -444,6 +447,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000001 /* TallyApp.swift in Sources */,
+				AA0100000000000000000001 /* NativeReminderSelfTest.swift in Sources */,
 				100000000000000000000004 /* QuickAddParser.swift in Sources */,
 				88042B89C028E130ABF3E12E /* QuickAddEarlyReminderPopover.swift in Sources */,
 				9D69096AE72C201ED245055E /* QuickAddEarlyReminder.swift in Sources */,

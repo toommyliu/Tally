@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/tally-xcode.sh"
+source "${SCRIPT_DIR}/lib/tally-signing.sh"
 
 signing_identity="${TALLY_SIGNING_IDENTITY:-Local Code Signing}"
 
@@ -24,21 +25,6 @@ Environment:
 
 USAGE
     usage_mode
-}
-
-require_signing_identity() {
-    if security find-identity -v -p codesigning 2>/dev/null \
-        | grep -Fq -- "${signing_identity}"
-    then
-        return
-    fi
-
-    cat >&2 <<ERROR
-error: code signing identity '${signing_identity}' was not found.
-Create a self-signed Code Signing certificate with that name in Keychain Access,
-or set TALLY_SIGNING_IDENTITY to another identity available in your keychain.
-ERROR
-    exit 1
 }
 
 mode="prod"
@@ -71,7 +57,7 @@ artifact_dir="${BUILD_ROOT}/artifacts"
 timestamp="$(date -u '+%Y%m%dT%H%M%SZ')"
 artifact_path="${artifact_dir}/${APP_NAME}-${configuration}-${timestamp}.zip"
 
-require_signing_identity
+require_signing_identity "${signing_identity}"
 
 mkdir -p "$(configuration_build_dir "${configuration}")" "${artifact_dir}"
 

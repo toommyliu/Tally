@@ -35,6 +35,19 @@ final class TallyAppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "--native-self-test") {
+            guard arguments.indices.contains(index + 1) else {
+                exit(1)
+            }
+            Task {
+                await NativeReminderSelfTest.run(outputFileName: arguments[index + 1])
+            }
+            return
+        }
+        #endif
+
         appController.configure(
             reminderStore: reminderStore,
             calendarEventStore: calendarEventStore,

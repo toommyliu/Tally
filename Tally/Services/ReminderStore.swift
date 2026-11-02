@@ -186,32 +186,6 @@ final class ReminderStore: ObservableObject {
         }
     }
 
-    @available(*, deprecated, message: "Create a ReminderCreationRequest before saving.")
-    func addReminder(
-        from input: String,
-        notes: String?,
-        suppressedTokens: [QuickAddSuppressedToken] = []
-    ) async -> Bool {
-        let fields = QuickAddParser.parse(input, suppressedTokens: suppressedTokens)
-        guard !fields.title.isEmpty else {
-            return false
-        }
-
-        return await addReminder(ReminderCreationRequest(
-            title: fields.title,
-            userNotes: notes,
-            inlineNotes: fields.inlineNotes,
-            tags: fields.tags,
-            listIdentifier: nil,
-            listName: fields.listName,
-            dueDate: fields.dueDate,
-            recurrence: fields.recurrence,
-            earlyReminder: fields.earlyReminder,
-            url: fields.url,
-            priority: fields.priority
-        ))
-    }
-
     func completeReminder(withID id: String) async {
         if isUITesting {
             reminders.removeAll { $0.id == id }

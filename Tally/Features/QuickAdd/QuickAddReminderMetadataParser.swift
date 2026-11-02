@@ -26,13 +26,6 @@ struct QuickAddInvalidRecurrenceMatch {
     let endIndex: Int
 }
 
-struct QuickAddEarlyReminderMatch {
-    let earlyReminder: ReminderEarlyReminder
-    let range: NSRange
-    let startIndex: Int
-    let endIndex: Int
-}
-
 struct QuickAddURLMatch {
     let url: URL
     let range: NSRange
@@ -42,7 +35,6 @@ struct QuickAddURLMatch {
 struct QuickAddReminderMetadataMatches {
     let recurrences: [QuickAddRecurrenceMatch]
     let invalidRecurrences: [QuickAddInvalidRecurrenceMatch]
-    let earlyReminders: [QuickAddEarlyReminderMatch]
     let urls: [QuickAddURLMatch]
 }
 
@@ -118,16 +110,15 @@ enum QuickAddReminderMetadataParser {
     ]
 
     static func parse(
-        tokens: [QuickAddScannedToken],
+        tokens: QuickAddParseWords,
         calendar: Calendar,
         now: Date
     ) -> QuickAddReminderMetadataMatches {
-        let contentTokens = Array(tokens.prefix { !$0.text.hasPrefix("//") })
-        let earlyReminders = earlyReminderMatches(in: contentTokens)
+        let contentTokens = tokens.beforeNotes
         let urls = urlMatches(in: contentTokens)
         let recurrences = recurrenceMatches(
             in: contentTokens,
-            earlyReminders: earlyReminders,
+
             urls: urls,
             calendar: calendar,
             now: now
@@ -136,102 +127,26 @@ enum QuickAddReminderMetadataParser {
         return QuickAddReminderMetadataMatches(
             recurrences: recurrences.valid,
             invalidRecurrences: recurrences.invalid,
-            earlyReminders: earlyReminders,
+
             urls: urls
         )
     }
 
-    private static func earlyReminderMatches(
-        in tokens: [QuickAddScannedToken]
-    ) -> [QuickAddEarlyReminderMatch] {
-        var matches: [QuickAddEarlyReminderMatch] = []
-
-        for index in tokens.indices where normalizedToken(at: index, in: tokens) == "remind" {
-            var durationIndex = index + 1
-
-            if normalizedToken(at: durationIndex, in: tokens) == "me" {
-                durationIndex += 1
-            }
-
-            guard let duration = earlyReminderDuration(at: durationIndex, in: tokens),
-                  let suffix = normalizedToken(at: duration.endIndex + 1, in: tokens),
-                  suffix == "early" || suffix == "before" else {
-                continue
-            }
-
-            let endIndex = duration.endIndex + 1
-            matches.append(QuickAddEarlyReminderMatch(
-                earlyReminder: ReminderEarlyReminder(
-                    amount: duration.amount,
-                    unit: duration.unit
-                ),
-                range: QuickAddParsingSupport.union(tokens[index].range, tokens[endIndex].range),
-                startIndex: index,
-                endIndex: endIndex
-            ))
-        }
-
-        return matches
-    }
-
-    private static func earlyReminderDuration(
-        at index: Int,
-        in tokens: [QuickAddScannedToken]
-    ) -> (amount: Int, unit: ReminderEarlyReminder.Unit, endIndex: Int)? {
-        guard let value = normalizedToken(at: index, in: tokens) else {
-            return nil
-        }
-
-        let digits = value.prefix { $0.isNumber }
-
-        if !digits.isEmpty,
-           let amount = Int(digits),
-           amount > 0 {
-            let suffix = String(value.dropFirst(digits.count))
-
-            if !suffix.isEmpty,
-               let unit = earlyReminderUnit(for: suffix) {
-                return (amount, unit, index)
-            }
-
-            if suffix.isEmpty,
-               let unitToken = normalizedToken(at: index + 1, in: tokens),
-               let unit = earlyReminderUnit(for: unitToken) {
-                return (amount, unit, index + 1)
-            }
-        }
-
-        return nil
-    }
-
-    private static func earlyReminderUnit(for token: String) -> ReminderEarlyReminder.Unit? {
-        switch token {
-        case "m", "min", "mins", "minute", "minutes":
-            return .minutes
-        case "h", "hr", "hrs", "hour", "hours":
-            return .hours
-        case "d", "day", "days":
-            return .days
-        case "w", "wk", "wks", "week", "weeks":
-            return .weeks
-        default:
-            return nil
-        }
-    }
-
-    private static func urlMatches(in tokens: [QuickAddScannedToken]) -> [QuickAddURLMatch] {
+    private static func urlMatches(in tokens: QuickAddParseWords) -> [QuickAddURLMatch] {
         var matches: [QuickAddURLMatch] = []
 
-        for (index, token) in tokens.enumerated() {
-            let markdownURL = markdownURLText(from: token.text)
+        for index in tokens.indices {
+            let token = tokens[index]
+            let text = tokens.word(at: index) ?? ""
+            let markdownURL = markdownURLText(from: text)
 
             if markdownURL == nil,
-               token.text.hasPrefix("["),
-               token.text.contains("](") {
+               text.hasPrefix("["),
+               text.contains("](") {
                 continue
             }
 
-            let trimmed = markdownURL ?? trimmingExternalURLPunctuation(from: token.text)
+            let trimmed = markdownURL ?? trimmingExternalURLPunctuation(from: text)
 
             guard let url = URL(string: trimmed.value),
                   let scheme = url.scheme?.lowercased(),
@@ -350,14 +265,15 @@ enum QuickAddReminderMetadataParser {
     }
 
     private static func recurrenceMatches(
-        in tokens: [QuickAddScannedToken],
-        earlyReminders: [QuickAddEarlyReminderMatch],
+        in tokens: QuickAddParseWords,
+
         urls: [QuickAddURLMatch],
         calendar: Calendar,
         now: Date
     ) -> RecurrenceMatches {
         var matches = RecurrenceMatches()
-        let eventRangeStart = tokens.lazy.compactMap { token -> QuickAddParsedTime? in
+        let eventRangeStart = tokens.indices.lazy.compactMap { index -> QuickAddParsedTime? in
+            let token = tokens[index]
             guard case let .timeRange(start, _) = token.eventTiming else {
                 return nil
             }
@@ -380,7 +296,7 @@ enum QuickAddReminderMetadataParser {
             if hasUnsupportedRecurrenceContinuation(
                 after: pattern.endIndex,
                 in: tokens,
-                earlyReminders: earlyReminders,
+
                 urls: urls
             ) {
                 matches.invalid.append(QuickAddInvalidRecurrenceMatch(
@@ -406,14 +322,14 @@ enum QuickAddReminderMetadataParser {
             var timeMatch = followingTime(
                 after: pattern.endIndex,
                 in: tokens,
-                earlyReminders: earlyReminders,
+
                 urls: urls
             )
             let endSearchAnchor = timeMatch?.endIndex ?? pattern.endIndex
             let endKeywordIndex = indexAfterMetadata(
                 after: endSearchAnchor,
                 in: tokens,
-                earlyReminders: earlyReminders,
+
                 urls: urls
             )
             let initialEndResult = recurrenceEnd(
@@ -441,7 +357,7 @@ enum QuickAddReminderMetadataParser {
                 timeMatch = followingTime(
                     after: endMatch.endIndex,
                     in: tokens,
-                    earlyReminders: earlyReminders,
+
                     urls: urls
                 )
             }
@@ -489,7 +405,7 @@ enum QuickAddReminderMetadataParser {
             if hasUnsupportedRecurrenceContinuation(
                 after: recurrenceClauseEndIndex,
                 in: tokens,
-                earlyReminders: earlyReminders,
+
                 urls: urls
             ) {
                 matches.invalid.append(QuickAddInvalidRecurrenceMatch(
@@ -552,7 +468,7 @@ enum QuickAddReminderMetadataParser {
 
     private static func recurrenceEnd(
         at keywordIndex: Int,
-        in tokens: [QuickAddScannedToken],
+        in tokens: QuickAddParseWords,
         dueDate: DateComponents,
         calendar: Calendar
     ) -> RecurrenceEndResult {
@@ -620,7 +536,7 @@ enum QuickAddReminderMetadataParser {
 
     private static func recurrencePattern(
         after everyIndex: Int,
-        in tokens: [QuickAddScannedToken]
+        in tokens: QuickAddParseWords
     ) -> RecurrencePattern? {
         let valueIndex = everyIndex + 1
 
@@ -664,7 +580,7 @@ enum QuickAddReminderMetadataParser {
 
     private static func invalidRecurrencePatternEnd(
         after everyIndex: Int,
-        in tokens: [QuickAddScannedToken]
+        in tokens: QuickAddParseWords
     ) -> Int? {
         let intervalIndex = everyIndex + 1
         let unitIndex = everyIndex + 2
@@ -682,21 +598,24 @@ enum QuickAddReminderMetadataParser {
 
     private static func unsupportedRecurrencePatternEnd(
         after everyIndex: Int,
-        in tokens: [QuickAddScannedToken]
+        in tokens: QuickAddParseWords
     ) -> Int? {
         let valueIndex = everyIndex + 1
-        guard let value = normalizedToken(at: valueIndex, in: tokens), !value.isEmpty else {
+        guard tokens.indices.contains(valueIndex),
+              tokens[valueIndex].kind == .eventTiming ||
+                ((tokens[valueIndex].kind == .literal || tokens[valueIndex].kind == .suppressedMetadata) &&
+                    tokens[valueIndex].containsNonPunctuation) ||
+                !(normalizedToken(at: valueIndex, in: tokens) ?? "").isEmpty else {
             return nil
         }
 
-        // Once "every" starts a recurrence-shaped clause, unsupported grammar stays literal.
         return valueIndex
     }
 
     private static func invalidRecurrenceEndIndex(
         at dateIndex: Int,
         after keywordIndex: Int,
-        in tokens: [QuickAddScannedToken]
+        in tokens: QuickAddParseWords
     ) -> Int {
         if let syntaxEndIndex = QuickAddParsingSupport.calendarDateSyntaxEndIndex(
             at: dateIndex,
@@ -759,14 +678,14 @@ enum QuickAddReminderMetadataParser {
 
     private static func followingTime(
         after index: Int,
-        in tokens: [QuickAddScannedToken],
-        earlyReminders: [QuickAddEarlyReminderMatch] = [],
+        in tokens: QuickAddParseWords,
+
         urls: [QuickAddURLMatch] = []
     ) -> RecurrenceTimeMatch? {
         let atIndex = indexAfterMetadata(
             after: index,
             in: tokens,
-            earlyReminders: earlyReminders,
+
             urls: urls,
             skippingEventRanges: false
         )
@@ -779,7 +698,7 @@ enum QuickAddReminderMetadataParser {
 
         guard normalizedToken(at: atIndex, in: tokens) == "at",
               tokens.indices.contains(timeIndex),
-              let time = QuickAddParsingSupport.parseTime(tokens[timeIndex].text) else {
+              let time = QuickAddParsingSupport.parseTime((tokens.word(at: timeIndex) ?? "")) else {
             return nil
         }
 
@@ -788,16 +707,16 @@ enum QuickAddReminderMetadataParser {
 
     private static func indexAfterMetadata(
         after index: Int,
-        in tokens: [QuickAddScannedToken],
-        earlyReminders: [QuickAddEarlyReminderMatch],
+        in tokens: QuickAddParseWords,
+
         urls: [QuickAddURLMatch],
         skippingEventRanges: Bool = true
     ) -> Int {
         var nextIndex = index + 1
 
         while true {
-            if let earlyReminder = earlyReminders.first(where: { $0.startIndex == nextIndex }) {
-                nextIndex = earlyReminder.endIndex + 1
+            if tokens.indices.contains(nextIndex), tokens[nextIndex].kind == .earlyReminder {
+                nextIndex += 1
                 continue
             }
 
@@ -816,7 +735,8 @@ enum QuickAddReminderMetadataParser {
             }
 
             if tokens.indices.contains(nextIndex),
-               QuickAddParsingSupport.isSingleTokenReminderMetadata(tokens[nextIndex]) {
+               (tokens[nextIndex].kind == .suppressedMetadata ||
+                QuickAddParsingSupport.isSingleTokenReminderMetadata(tokens.word(at: nextIndex) ?? "")) {
                 nextIndex += 1
                 continue
             }
@@ -827,14 +747,14 @@ enum QuickAddReminderMetadataParser {
 
     private static func hasUnsupportedRecurrenceContinuation(
         after recurrenceClauseEndIndex: Int,
-        in tokens: [QuickAddScannedToken],
-        earlyReminders: [QuickAddEarlyReminderMatch],
+        in tokens: QuickAddParseWords,
+
         urls: [QuickAddURLMatch]
     ) -> Bool {
         let nextIndex = indexAfterMetadata(
             after: recurrenceClauseEndIndex,
             in: tokens,
-            earlyReminders: earlyReminders,
+
             urls: urls
         )
         guard let next = normalizedToken(at: nextIndex, in: tokens) else {
@@ -849,7 +769,7 @@ enum QuickAddReminderMetadataParser {
         patternEndIndex: Int,
         timeMatch: RecurrenceTimeMatch?,
         endMatch: RecurrenceEndMatch?,
-        in tokens: [QuickAddScannedToken]
+        in tokens: QuickAddParseWords
     ) -> [QuickAddRecurrenceTokenMatch] {
         var spans = [RecurrenceTokenSpan(
             startIndex: startIndex,
@@ -1137,12 +1057,12 @@ enum QuickAddReminderMetadataParser {
 
     private static func normalizedToken(
         at index: Int,
-        in tokens: [QuickAddScannedToken]
+        in tokens: QuickAddParseWords
     ) -> String? {
         guard tokens.indices.contains(index) else {
             return nil
         }
 
-        return QuickAddParsingSupport.normalized(tokens[index].text)
+        return QuickAddParsingSupport.normalized(tokens.word(at: index) ?? "")
     }
 }

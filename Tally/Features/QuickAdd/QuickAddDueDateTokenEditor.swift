@@ -12,8 +12,76 @@ enum QuickAddEventLength: Hashable {
 }
 
 struct QuickAddTextEdit: Equatable {
-    var text: String
-    var selectedRange: NSRange?
+    private(set) var text: String
+    var selectedRange: NSRange? = nil
+    private(set) var suppressedTokens: [QuickAddSuppressedToken] = []
+
+    fileprivate mutating func replaceCharacters(in range: NSRange, with replacement: String) {
+        guard let textRange = Range(range, in: text) else { return }
+        let delta = replacement.utf16.count - range.length
+        suppressedTokens = suppressedTokens.compactMap { suppression in
+            var keptRange = suppression.range
+            if NSMaxRange(range) <= keptRange.location {
+                keptRange.location += delta
+            } else if range.location < NSMaxRange(keptRange) {
+                return nil
+            }
+            return QuickAddSuppressedToken(kind: suppression.kind, range: keptRange, text: suppression.text)
+        }
+        text.replaceSubrange(textRange, with: replacement)
+        suppressedTokens = suppressedTokens.map { suppression in
+            QuickAddSuppressedToken(kind: suppression.kind, range: suppression.range,
+                text: (text as NSString).substring(with: suppression.range))
+        }
+    }
+
+    fileprivate mutating func normalizeWhitespace() {
+        let source = Array(text.utf16)
+        let whitespace = CharacterSet.whitespacesAndNewlines
+        func isWhitespace(_ unit: UInt16) -> Bool {
+            UnicodeScalar(unit).map(whitespace.contains) == true
+        }
+        var index = 0
+        while index < source.count {
+            guard isWhitespace(source[index]) else { index += 1; continue }
+            let start = index
+            repeat { index += 1 } while index < source.count && isWhitespace(source[index])
+            if source[start] != 32 || index - start != 1 || start == 0 || index == source.count {
+                index = start
+                break
+            }
+        }
+        guard index < source.count else { return }
+        var normalized = Array(source[..<index])
+        normalized.reserveCapacity(source.count)
+        var positions = Array(0...index)
+        positions.reserveCapacity(source.count + 1)
+        while index < source.count {
+            if isWhitespace(source[index]) {
+                let start = index
+                repeat { index += 1 }
+                while index < source.count && isWhitespace(source[index])
+                if start > 0 && index < source.count { normalized.append(32) }
+                positions.append(contentsOf: repeatElement(normalized.count, count: index - start))
+            } else {
+                normalized.append(source[index])
+                positions.append(normalized.count)
+                index += 1
+            }
+        }
+        let normalizedText = String(decoding: normalized, as: UTF16.self)
+        let result = normalizedText as NSString
+        suppressedTokens = suppressedTokens.compactMap { suppression in
+            var start = positions[suppression.range.location]
+            var end = positions[NSMaxRange(suppression.range)]
+            if start < end && normalized[start] == 32 { start += 1 }
+            if start < end && normalized[end - 1] == 32 { end -= 1 }
+            guard start < end else { return nil }
+            let range = NSRange(location: start, length: end - start)
+            return QuickAddSuppressedToken(kind: suppression.kind, range: range, text: result.substring(with: range))
+        }
+        text = normalizedText
+    }
 }
 
 enum QuickAddTokenEditor {
@@ -24,7 +92,7 @@ enum QuickAddTokenEditor {
         now: Date = Date(),
         suppressedTokens: [QuickAddSuppressedToken] = [],
         mode: QuickAddMode = .reminder
-    ) -> String {
+    ) -> QuickAddTextEdit {
         let fields = QuickAddParser.parse(
             input,
             mode: mode,
@@ -35,11 +103,7 @@ enum QuickAddTokenEditor {
         guard let selection else {
             let tokensToRemove = fields.usedTokens.filter(\.isScheduleToken)
 
-            guard !tokensToRemove.isEmpty else {
-                return normalized(input)
-            }
-
-            return normalized(removingTokens(tokensToRemove, from: input))
+            return removingTokens(tokensToRemove, from: input, suppressedTokens: suppressedTokens)
         }
 
         var replacement = dueDateToken(for: selection, calendar: calendar)
@@ -55,7 +119,8 @@ enum QuickAddTokenEditor {
             fields.usedTokens.filter { $0.isDueDateToken || (!selection.includesTime && $0.kind == .duration) },
             in: input,
             with: replacement,
-            fields: fields
+            fields: fields,
+            suppressedTokens: suppressedTokens
         )
     }
 
@@ -66,7 +131,7 @@ enum QuickAddTokenEditor {
         now: Date = Date(),
         suppressedTokens: [QuickAddSuppressedToken] = [],
         mode: QuickAddMode = .reminder
-    ) -> String {
+    ) -> QuickAddTextEdit {
         replacingTokens(
             in: input,
             matching: { $0.kind == .list },
@@ -84,7 +149,7 @@ enum QuickAddTokenEditor {
         now: Date = Date(),
         suppressedTokens: [QuickAddSuppressedToken] = [],
         mode: QuickAddMode = .reminder
-    ) -> String {
+    ) -> QuickAddTextEdit {
         replacingTokens(
             in: input,
             matching: { $0.kind == .list },
@@ -96,6 +161,16 @@ enum QuickAddTokenEditor {
         )
     }
 
+    static func applyingEarlyReminder(
+        _ offset: ReminderEarlyReminder?, to input: String,
+        calendar: Calendar = .current, now: Date = Date(),
+        suppressedTokens: [QuickAddSuppressedToken] = [], mode: QuickAddMode = .reminder
+    ) -> QuickAddTextEdit {
+        replacingTokens(in: input, matching: { $0.kind == .earlyReminder },
+                        with: offset.map(EarlyReminderCatalog.token(for:)), calendar: calendar, now: now,
+                        suppressedTokens: suppressedTokens, mode: mode)
+    }
+
     static func applyingPriority(
         _ priority: Int,
         to input: String,
@@ -103,7 +178,7 @@ enum QuickAddTokenEditor {
         now: Date = Date(),
         suppressedTokens: [QuickAddSuppressedToken] = [],
         mode: QuickAddMode = .reminder
-    ) -> String {
+    ) -> QuickAddTextEdit {
         replacingTokens(
             in: input,
             matching: { $0.kind == .priority },
@@ -121,7 +196,7 @@ enum QuickAddTokenEditor {
         calendar: Calendar = .current,
         now: Date = Date(),
         suppressedTokens: [QuickAddSuppressedToken] = []
-    ) -> String {
+    ) -> QuickAddTextEdit {
         let fields = QuickAddParser.parse(
             input,
             mode: .event,
@@ -137,7 +212,7 @@ enum QuickAddTokenEditor {
         case .allDay:
             guard let start = fields.eventTiming?.start,
                   let startDate = calendar.date(from: start) else {
-                return normalized(input)
+                return removingTokens([], from: input, suppressedTokens: suppressedTokens)
             }
 
             var tokensToRemove = fields.usedTokens.filter {
@@ -155,7 +230,8 @@ enum QuickAddTokenEditor {
                 tokensToRemove,
                 in: input,
                 with: replacement,
-                fields: fields
+                fields: fields,
+                suppressedTokens: suppressedTokens
             )
         case let .duration(duration):
             var replacement = duration.token
@@ -165,7 +241,7 @@ enum QuickAddTokenEditor {
                 replacement = "\(timeToken(hour: hour, minute: start.minute ?? 0)) \(replacement)"
             }
 
-            return replacingTokens(lengthTokens, in: input, with: replacement, fields: fields)
+            return replacingTokens(lengthTokens, in: input, with: replacement, fields: fields, suppressedTokens: suppressedTokens)
         }
     }
 
@@ -185,15 +261,13 @@ enum QuickAddTokenEditor {
         )
         let pendingTagTokens = pendingTagTokens(in: fields, input: input)
 
-        if let pendingEdit = reusingFirstPendingTag(pendingTagTokens, in: input) {
+        if let pendingEdit = reusingFirstPendingTag(pendingTagTokens, in: input, suppressedTokens: suppressedTokens) {
             return pendingEdit
         }
 
-        let updated = appendingToken("@", to: input, fields: fields)
-        return QuickAddTextEdit(
-            text: updated,
-            selectedRange: selectionAfterFirstPendingTag(in: updated)
-        )
+        var edit = appendingToken("@", to: input, fields: fields, suppressedTokens: suppressedTokens)
+        edit.selectedRange = selectionAfterFirstPendingTag(in: edit.text)
+        return edit
     }
 
     static func beginningTagEntry(
@@ -213,22 +287,21 @@ enum QuickAddTokenEditor {
         let pendingTagTokens = pendingTagTokens(in: fields, input: input)
         let completedTagTokens = completedTagTokens(in: fields, input: input)
 
-        if let pendingEdit = reusingFirstPendingTag(pendingTagTokens, in: input) {
+        if let pendingEdit = reusingFirstPendingTag(pendingTagTokens, in: input, suppressedTokens: suppressedTokens) {
             return pendingEdit
         }
 
         if let existingTag = completedTagTokens.last {
             return QuickAddTextEdit(
                 text: input,
-                selectedRange: selectionInsideTag(existingTag)
+                selectedRange: selectionInsideTag(existingTag),
+                suppressedTokens: suppressedTokens
             )
         }
 
-        let updated = appendingToken("@", to: input, fields: fields)
-        return QuickAddTextEdit(
-            text: updated,
-            selectedRange: selectionAfterFirstPendingTag(in: updated)
-        )
+        var edit = appendingToken("@", to: input, fields: fields, suppressedTokens: suppressedTokens)
+        edit.selectedRange = selectionAfterFirstPendingTag(in: edit.text)
+        return edit
     }
 
     static func editingTag(
@@ -260,7 +333,8 @@ enum QuickAddTokenEditor {
 
         return QuickAddTextEdit(
             text: input,
-            selectedRange: selectionInsideTag(completedTagTokens[index])
+            selectedRange: selectionInsideTag(completedTagTokens[index]),
+            suppressedTokens: suppressedTokens
         )
     }
 
@@ -271,7 +345,7 @@ enum QuickAddTokenEditor {
         now: Date = Date(),
         suppressedTokens: [QuickAddSuppressedToken] = [],
         mode: QuickAddMode = .reminder
-    ) -> String {
+    ) -> QuickAddTextEdit {
         let fields = QuickAddParser.parse(
             input,
             mode: mode,
@@ -282,10 +356,10 @@ enum QuickAddTokenEditor {
         let completedTagTokens = completedTagTokens(in: fields, input: input)
 
         guard completedTagTokens.indices.contains(index) else {
-            return normalized(input)
+            return removingTokens([], from: input, suppressedTokens: suppressedTokens)
         }
 
-        return normalized(removingTokens([completedTagTokens[index]], from: input))
+        return removingTokens([completedTagTokens[index]], from: input, suppressedTokens: suppressedTokens)
     }
 
     static func dueDateToken(
@@ -315,74 +389,59 @@ enum QuickAddTokenEditor {
         now: Date,
         suppressedTokens: [QuickAddSuppressedToken],
         mode: QuickAddMode
-    ) -> String {
-        let fields = QuickAddParser.parse(
-            input,
-            mode: mode,
-            calendar: calendar,
-            now: now,
-            suppressedTokens: suppressedTokens
-        )
-        return replacingTokens(fields.usedTokens.filter(predicate), in: input, with: replacement, fields: fields)
+    ) -> QuickAddTextEdit {
+        let fields = QuickAddParser.parse(input, mode: mode, calendar: calendar, now: now,
+            suppressedTokens: suppressedTokens)
+        return replacingTokens(fields.usedTokens.filter(predicate), in: input, with: replacement,
+            fields: fields, suppressedTokens: suppressedTokens)
     }
 
     private static func replacingTokens(
         _ tokens: [QuickAddToken],
         in input: String,
         with replacement: String?,
-        fields: QuickAddFields
-    ) -> String {
+        fields: QuickAddFields,
+        suppressedTokens: [QuickAddSuppressedToken]
+    ) -> QuickAddTextEdit {
         guard let firstToken = tokens.min(by: { $0.range.location < $1.range.location }) else {
             guard let replacement else {
-                return normalized(input)
+                return removingTokens([], from: input, suppressedTokens: suppressedTokens)
             }
-
-            return appendingToken(replacement, to: input, fields: fields)
+            return appendingToken(replacement, to: input, fields: fields, suppressedTokens: suppressedTokens)
         }
 
-        var updated = removingTokens(tokens, from: input)
-
-        if let replacement,
-           let insertionIndex = stringIndex(atUTF16Offset: firstToken.range.location, in: updated) {
-            updated.insert(contentsOf: replacement, at: insertionIndex)
+        var edit = QuickAddTextEdit(text: input, suppressedTokens: suppressedTokens)
+        for token in tokens.sorted(by: { $0.range.location > $1.range.location }) {
+            edit.replaceCharacters(in: token.range, with: token == firstToken ? replacement ?? "" : "")
         }
-
-        return normalized(updated)
+        edit.normalizeWhitespace()
+        return edit
     }
 
-    private static func removingTokens(_ tokens: [QuickAddToken], from input: String) -> String {
-        var updated = input
-        let sortedTokens = tokens.sorted { $0.range.location > $1.range.location }
-
-        for token in sortedTokens {
-            guard let range = Range(token.range, in: updated) else {
-                continue
-            }
-
-            updated.removeSubrange(range)
+    private static func removingTokens(_ tokens: [QuickAddToken], from input: String,
+                                       suppressedTokens: [QuickAddSuppressedToken]) -> QuickAddTextEdit {
+        var edit = QuickAddTextEdit(text: input, suppressedTokens: suppressedTokens)
+        for token in tokens.sorted(by: { $0.range.location > $1.range.location }) {
+            edit.replaceCharacters(in: token.range, with: "")
         }
-
-        return updated
+        edit.normalizeWhitespace()
+        return edit
     }
 
     private static func appendingToken(
         _ token: String,
         to input: String,
-        fields: QuickAddFields
-    ) -> String {
-        let cleanedInput = normalized(input)
-        guard !cleanedInput.isEmpty else {
-            return token
+        fields: QuickAddFields,
+        suppressedTokens: [QuickAddSuppressedToken]
+    ) -> QuickAddTextEdit {
+        var edit = QuickAddTextEdit(text: input, suppressedTokens: suppressedTokens)
+        if let noteToken = fields.usedTokens.first(where: { $0.kind == .note }) {
+            edit.replaceCharacters(in: NSRange(location: noteToken.range.location, length: 0), with: "\(token) ")
+        } else {
+            edit.replaceCharacters(in: NSRange(location: input.utf16.count, length: 0), with: " \(token)")
         }
-
-        if let noteToken = fields.usedTokens.first(where: { $0.kind == .note }),
-           let insertionIndex = stringIndex(atUTF16Offset: noteToken.range.location, in: input) {
-            var updated = input
-            updated.insert(contentsOf: "\(token) ", at: insertionIndex)
-            return normalized(updated)
-        }
-
-        return "\(cleanedInput) \(token)"
+        edit.normalizeWhitespace()
+        return edit
     }
 
     private static func priorityToken(for priority: Int) -> String? {
@@ -433,20 +492,16 @@ enum QuickAddTokenEditor {
 
     private static func reusingFirstPendingTag(
         _ pendingTagTokens: [QuickAddToken],
-        in input: String
+        in input: String,
+        suppressedTokens: [QuickAddSuppressedToken]
     ) -> QuickAddTextEdit? {
-        guard let firstPendingTag = pendingTagTokens.first else {
-            return nil
-        }
-
-        let updated = normalized(removingTokens(Array(pendingTagTokens.dropFirst()), from: input))
-        return QuickAddTextEdit(
-            text: updated,
-            selectedRange: selectionAfterPendingTag(
-                matchingOriginalLocation: firstPendingTag.range.location,
-                in: updated
-            ) ?? selectionAfterFirstPendingTag(in: updated)
-        )
+        guard let firstPendingTag = pendingTagTokens.first else { return nil }
+        var edit = removingTokens(Array(pendingTagTokens.dropFirst()), from: input, suppressedTokens: suppressedTokens)
+        edit.selectedRange = selectionAfterPendingTag(
+            matchingOriginalLocation: firstPendingTag.range.location,
+            in: edit.text
+        ) ?? selectionAfterFirstPendingTag(in: edit.text)
+        return edit
     }
 
     private static func selectionAfterPendingTag(
@@ -484,19 +539,6 @@ enum QuickAddTokenEditor {
         NSRange(location: token.range.location + 1, length: max(token.range.length - 1, 0))
     }
 
-    private static func stringIndex(atUTF16Offset offset: Int, in string: String) -> String.Index? {
-        guard offset <= string.utf16.count,
-              let utf16Index = string.utf16.index(
-                string.utf16.startIndex,
-                offsetBy: offset,
-                limitedBy: string.utf16.endIndex
-              ) else {
-            return nil
-        }
-
-        return String.Index(utf16Index, within: string)
-    }
-
     private static func timeToken(hour: Int, minute: Int) -> String {
         let suffix = hour >= 12 ? "pm" : "am"
         let displayHour = {
@@ -506,13 +548,6 @@ enum QuickAddTokenEditor {
 
         return String(format: "%d:%02d%@", displayHour, minute, suffix)
     }
-
-    private static func normalized(_ input: String) -> String {
-        input
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-    }
 }
 
 private extension QuickAddToken {
@@ -521,7 +556,7 @@ private extension QuickAddToken {
     }
 
     var isScheduleToken: Bool {
-        isDueDateToken || kind == .earlyReminder || kind == .duration
+        isDueDateToken || kind == .duration
     }
 }
 
@@ -532,7 +567,7 @@ enum QuickAddDueDateTokenEditor {
         calendar: Calendar = .current,
         now: Date = Date(),
         suppressedTokens: [QuickAddSuppressedToken] = []
-    ) -> String {
+    ) -> QuickAddTextEdit {
         QuickAddTokenEditor.applyingDueDate(
             selection,
             to: input,

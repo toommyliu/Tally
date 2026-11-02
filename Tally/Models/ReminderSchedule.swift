@@ -42,24 +42,6 @@ enum ReminderRecurrenceEnd: Equatable {
     case occurrenceCount(Int)
 }
 
-/// A relative alert shown before a reminder's timed due date.
-struct ReminderEarlyReminder: Equatable {
-    enum Unit: Equatable {
-        case minutes
-        case hours
-        case days
-        case weeks
-    }
-
-    let amount: Int
-    let unit: Unit
-
-    init(amount: Int, unit: Unit) {
-        self.amount = max(amount, 1)
-        self.unit = unit
-    }
-}
-
 /// Weekday values use Foundation's Sunday-first numbering for direct calendar conversion.
 enum ReminderWeekday: Int, CaseIterable, Equatable {
     case sunday = 1

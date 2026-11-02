@@ -2,6 +2,7 @@ import SwiftUI
 
 enum QuickAddPopoverKind: Hashable {
     case dueDate
+    case earlyReminder
     case eventLength
     case list
     case priority
@@ -11,6 +12,7 @@ enum QuickAddPopoverKind: Hashable {
 
 struct QuickAddMetadataBar: View {
     let mode: QuickAddMode
+    let context: QuickAddParseContext
     let fields: QuickAddFields
     let fallbackList: CalendarDestinationInfo
     let lists: [CalendarDestinationInfo]
@@ -19,6 +21,7 @@ struct QuickAddMetadataBar: View {
     let focusedControl: FocusState<QuickAddFocusTarget?>.Binding
     let onFocusTitle: () -> Void
     let onApplyDueDate: (QuickAddDueDateSelection?) -> Void
+    let onApplyEarlyReminder: (ReminderEarlyReminder?) -> Void
     let onApplyEventLength: (QuickAddEventLength) -> Void
     let onSelectList: (CalendarDestinationInfo) -> Void
     let onUseDefaultList: () -> Void
@@ -39,6 +42,16 @@ struct QuickAddMetadataBar: View {
                     focusedControl: focusedControl,
                     onFocusTitle: onFocusTitle,
                     onApply: onApplyDueDate
+                )
+
+                QuickAddEarlyReminderButton(
+                    parsed: fields.earlyReminder,
+                    target: mode == .event ? .event(timing: fields.eventTiming) : .reminder(dueDate: fields.dueDate),
+                    context: context,
+                    isPresented: presentationBinding(for: .earlyReminder),
+                    focusedControl: focusedControl,
+                    onFocusTitle: onFocusTitle,
+                    onApply: onApplyEarlyReminder
                 )
 
                 if mode == .event, let timing = fields.eventTiming {
@@ -440,7 +453,7 @@ private struct QuickAddTagButton: View {
     }
 }
 
-private struct QuickAddMetadataChip: View {
+struct QuickAddMetadataChip: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let systemName: String
@@ -844,7 +857,7 @@ private struct QuickAddTagPopover: View {
     }
 }
 
-private struct QuickAddPopoverPanel<Content: View>: View {
+struct QuickAddPopoverPanel<Content: View>: View {
     let width: CGFloat
     @ViewBuilder let content: Content
 
@@ -861,7 +874,7 @@ private struct QuickAddPopoverPanel<Content: View>: View {
     }
 }
 
-private struct QuickAddPopoverRow: View {
+struct QuickAddPopoverRow: View {
     @State private var isHovering = false
 
     let systemName: String
@@ -1002,6 +1015,9 @@ struct QuickAddHelpPopover: View {
                 .padding(.bottom, 10)
 
             VStack(alignment: .leading, spacing: 7) {
+                helpRow(icon: "bell", tint: TallyPalette.date,
+                        title: mode == .event ? "Alert" : "Early reminder",
+                        examples: mode == .event ? "!30m · !2h · !1d" : "!30m · !1d · !3mo")
                 helpRow(
                     icon: "calendar",
                     tint: TallyPalette.date,
@@ -1084,7 +1100,7 @@ struct QuickAddHelpPopover: View {
 
             Text(title)
                 .font(.system(size: 11.5, weight: .semibold))
-                .frame(width: 70, alignment: .leading)
+                .fixedSize(horizontal: true, vertical: false)
 
             Text(examples)
                 .font(.system(size: 10.5))

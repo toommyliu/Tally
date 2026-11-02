@@ -3,12 +3,18 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Writes fields that Reminders stores outside EventKit's public reminder model.
+typedef NS_ENUM(NSInteger, TallyReminderKitDeltaUnit) {
+    TallyReminderKitDeltaUnitMinute = 0,
+    TallyReminderKitDeltaUnitHour = 1,
+    TallyReminderKitDeltaUnitDay = 2,
+    TallyReminderKitDeltaUnitWeek = 3,
+    TallyReminderKitDeltaUnitMonth = 4,
+};
 FOUNDATION_EXPORT BOOL TallyApplyReminderKitMetadata(
     EKReminder *reminder,
     NSURL * _Nullable url,
     NSInteger earlyReminderAmount,
-    NSInteger earlyReminderUnit,
+    TallyReminderKitDeltaUnit earlyReminderUnit,
     NSError * _Nullable * _Nullable error
 );
 

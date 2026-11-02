@@ -87,7 +87,7 @@ final class QuickAddDraftTests: XCTestCase {
     func testRequestIncludesRecurrenceEarlyReminderAndURL() throws {
         let settings = makeSettings()
         let draft = QuickAddDraft(settingsStore: settings)
-        draft.text = "Review metrics every Monday at 9am remind 30m early https://example.com/metrics"
+        draft.text = "Review metrics every Monday at 9am !30m https://example.com/metrics"
 
         let request = try XCTUnwrap(draft.makeReminderRequest())
 
@@ -96,7 +96,7 @@ final class QuickAddDraftTests: XCTestCase {
             request.recurrence,
             ReminderRecurrence(frequency: .weekly, weekdays: [.monday])
         )
-        XCTAssertEqual(request.earlyReminder, ReminderEarlyReminder(amount: 30, unit: .minutes))
+        XCTAssertEqual(request.earlyReminder, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 30)!, unit: .minutes))
         XCTAssertEqual(request.url, URL(string: "https://example.com/metrics"))
     }
 
@@ -172,14 +172,14 @@ final class QuickAddDraftTests: XCTestCase {
 
     func testCanKeepEarlyReminderAndURLTokensAsTitleText() throws {
         let draft = QuickAddDraft(settingsStore: makeSettings())
-        draft.text = "Review tomorrow at 9am remind 30m early https://example.com/review"
+        draft.text = "Review tomorrow at 9am !30m https://example.com/review"
 
         try keepToken(.earlyReminder, asTextIn: draft)
         try keepToken(.url, asTextIn: draft)
 
         XCTAssertEqual(
             draft.fields.title,
-            "Review remind 30m early https://example.com/review"
+            "Review !30m https://example.com/review"
         )
         XCTAssertNil(draft.fields.earlyReminder)
         XCTAssertNil(draft.fields.url)
@@ -206,14 +206,14 @@ final class QuickAddDraftTests: XCTestCase {
         XCTAssertEqual(urlDraft.fields.url, URL(string: "https://two.example"))
 
         let earlyReminderDraft = QuickAddDraft(settingsStore: makeSettings())
-        earlyReminderDraft.text = "Review tomorrow at 2pm remind 30m early"
+        earlyReminderDraft.text = "Review tomorrow at 2pm !30m"
         try keepToken(.earlyReminder, asTextIn: earlyReminderDraft)
-        earlyReminderDraft.text += " remind 2h before"
+        earlyReminderDraft.text += " !2h"
 
-        XCTAssertEqual(earlyReminderDraft.fields.title, "Review remind 30m early")
+        XCTAssertEqual(earlyReminderDraft.fields.title, "Review !30m")
         XCTAssertEqual(
-            earlyReminderDraft.fields.earlyReminder,
-            ReminderEarlyReminder(amount: 2, unit: .hours)
+            earlyReminderDraft.fields.earlyReminder?.reminderValue,
+            ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 2)!, unit: .hours)
         )
     }
 
@@ -281,13 +281,13 @@ final class QuickAddDraftTests: XCTestCase {
         XCTAssertTrue(urlDraft.fields.title.contains("https://example.com"))
 
         let earlyDraft = QuickAddDraft(settingsStore: makeSettings())
-        earlyDraft.text = "Review every Monday at 9am remind 30m early until Sep 30"
+        earlyDraft.text = "Review every Monday at 9am !30m until Sep 30"
         try keepToken(.earlyReminder, asTextIn: earlyDraft)
         earlyDraft.applyDueDate(selection)
 
         XCTAssertNil(earlyDraft.fields.earlyReminder)
         XCTAssertEqual(earlyDraft.suppressedTokens.map(\.kind), [.earlyReminder])
-        XCTAssertTrue(earlyDraft.fields.title.contains("remind 30m early"))
+        XCTAssertTrue(earlyDraft.fields.title.contains("!30m"))
     }
 
     func testMetadataPickersPreserveSuppressedURLAcrossDuplicateTokens() throws {
@@ -471,5 +471,259 @@ final class QuickAddDraftTests: XCTestCase {
             file: file,
             line: line
         )
+    }
+}
+
+extension QuickAddDraftTests {
+    func testPriorityPickerPreservesSuppressedDateWithNormalizedWhitespace() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: 10))!
+        let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: calendar, now: { now })
+        draft.text = "📞 Review Oct   15 2099 P1"
+        try keepToken(.date, asTextIn: draft)
+        let edited = QuickAddTokenEditor.applyingPriority(9, to: draft.text, calendar: calendar,
+            now: now, suppressedTokens: draft.suppressedTokens).text
+        draft.applyPriority(9)
+        XCTAssertEqual(draft.text, edited)
+        let fields = QuickAddParser.parse(draft.text, calendar: calendar, now: now,
+            suppressedTokens: draft.suppressedTokens)
+        XCTAssertEqual(fields.title, "📞 Review Oct 15 2099")
+        XCTAssertNil(fields.dueDate)
+        XCTAssertEqual(fields.priority, 9)
+        XCTAssertEqual(draft.suppressedTokens.map(\.text), ["Oct 15 2099"])
+    }
+
+    func testDatePickerPreservesSuppressedDateWithNormalizedWhitespace() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: 10))!
+        let date = calendar.date(from: DateComponents(year: 2026, month: 10, day: 2))!
+        let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: calendar, now: { now })
+        draft.text = "Review Oct \t 15 2099 tomorrow"
+        try keepToken(.date, asTextIn: draft)
+        let selection = QuickAddDueDateSelection(date: date, includesTime: false)
+        let edited = QuickAddTokenEditor.applyingDueDate(selection, to: draft.text,
+            calendar: calendar, now: now, suppressedTokens: draft.suppressedTokens).text
+        draft.applyDueDate(selection)
+        XCTAssertEqual(draft.text, edited)
+        let fields = QuickAddParser.parse(draft.text, calendar: calendar, now: now,
+            suppressedTokens: draft.suppressedTokens)
+        XCTAssertEqual(fields.title, "Review Oct 15 2099")
+        XCTAssertEqual(fields.dueDate?.year, 2026)
+        XCTAssertEqual(fields.dueDate?.month, 10)
+        XCTAssertEqual(fields.dueDate?.day, 2)
+        XCTAssertEqual(draft.suppressedTokens.map(\.text), ["Oct 15 2099"])
+    }
+
+    func testDatePickerPreservesSuppressedPriorityAfterWhitespaceNormalization() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: 10))!
+        let date = calendar.date(from: DateComponents(year: 2026, month: 10, day: 2))!
+        let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: calendar, now: { now })
+        draft.text = "Review   P1 tomorrow"
+        try keepToken(.priority, asTextIn: draft)
+        draft.applyDueDate(QuickAddDueDateSelection(date: date, includesTime: false))
+        let fields = QuickAddParser.parse(draft.text, calendar: calendar, now: now,
+            suppressedTokens: draft.suppressedTokens)
+        XCTAssertEqual(fields.title, "Review P1")
+        XCTAssertEqual(fields.priority, 0)
+        XCTAssertEqual(fields.dueDate?.day, 2)
+        XCTAssertEqual(draft.suppressedTokens.map(\.text), ["P1"])
+    }
+}
+
+extension QuickAddDraftTests {
+    private var regressionCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        return calendar
+    }
+    private var regressionNow: Date { regressionCalendar.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: 10))! }
+
+    func testEveryFollowedByKeptMetadataKeepsTheRemainingScheduleLiteral() {
+        let cases: [(QuickAddToken.Kind, String)] = [
+            (.priority, "P1"), (.list, "#Home"), (.tag, "@work"), (.url, "https://a.com")
+        ]
+        for (kind, text) in cases {
+            for mode in [QuickAddMode.reminder, .event] {
+                let input = "Call every \(text) tomorrow at 5pm"
+                let fields = QuickAddParser.parse(input, mode: mode,
+                    calendar: regressionCalendar, now: regressionNow,
+                    suppressedTokens: [QuickAddSuppressedToken(kind: kind,
+                        range: (input as NSString).range(of: text), text: text)])
+                XCTAssertEqual(fields.title, input, text)
+                XCTAssertNil(fields.dueDate, text)
+                XCTAssertNil(fields.recurrence, text)
+                if mode == .event { XCTAssertEqual(fields.eventTiming?.isAllDay, true, text) }
+            }
+        }
+    }
+
+    func testEveryFollowedByPunctuationWordStillParsesTheDate() {
+        for word in ["!", "!!", "?", "..."] {
+            let input = "Call mom every \(word) tomorrow at 5pm"
+            let fields = QuickAddParser.parse(input, calendar: regressionCalendar, now: regressionNow)
+            XCTAssertEqual(fields.title, "Call mom every \(word)", input)
+            XCTAssertEqual(fields.dueDate?.day, 1, input)
+            XCTAssertEqual(fields.dueDate?.hour, 17, input)
+        }
+    }
+
+    func testTwoKeptDatesWithTheSameTextSurviveAPriorityEdit() throws {
+        let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: regressionCalendar, now: { self.regressionNow })
+        draft.text = "Pay  Oct 15 2099  then  Oct 15 2099  P1"
+        try keepToken(.date, asTextIn: draft)
+        try keepToken(.date, asTextIn: draft)
+        XCTAssertNil(draft.fields.dueDate)
+        draft.applyPriority(9)
+        let fields = draft.fields
+        XCTAssertEqual(draft.text, "Pay Oct 15 2099 then Oct 15 2099 P3")
+        XCTAssertNil(fields.dueDate)
+        XCTAssertEqual(fields.title, "Pay Oct 15 2099 then Oct 15 2099")
+        XCTAssertEqual(Set(draft.suppressedTokens.map(\.range.location)).count, 2)
+    }
+
+    func testKeptTagDoesNotMoveIntoAURLWhenClearingTheDate() throws {
+        let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: regressionCalendar, now: { self.regressionNow })
+        draft.text = "Read https://medium.com/@work  @work  tomorrow"
+        try keepToken(.tag, asTextIn: draft)
+        XCTAssertEqual(draft.fields.url?.absoluteString, "https://medium.com/@work")
+        XCTAssertEqual(draft.fields.tags, [])
+        draft.applyDueDate(nil)
+        let fields = draft.fields
+        XCTAssertEqual(draft.text, "Read https://medium.com/@work @work")
+        XCTAssertEqual(fields.url?.absoluteString, "https://medium.com/@work")
+        XCTAssertEqual(fields.tags, [])
+        XCTAssertEqual(fields.title, "Read @work")
+    }
+
+    func testKeptPriorityDoesNotMoveIntoAnotherWordWhenClearingTheDate() throws {
+        let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: regressionCalendar, now: { self.regressionNow })
+        draft.text = "Fix AP1 bug  P1  tomorrow"
+        try keepToken(.priority, asTextIn: draft)
+        XCTAssertEqual(draft.fields.priority, 0)
+        draft.applyDueDate(nil)
+        let fields = draft.fields
+        XCTAssertEqual(draft.text, "Fix AP1 bug P1")
+        XCTAssertEqual(fields.priority, 0)
+        XCTAssertEqual(fields.title, "Fix AP1 bug P1")
+    }
+}
+
+extension QuickAddDraftTests {
+    func testEveryFollowedByPunctuationStillAllowsALaterRecurrence() {
+        let fields = QuickAddParser.parse("Call every ... every Monday at 9am",
+            calendar: regressionCalendar, now: regressionNow)
+        XCTAssertEqual(fields.title, "Call every ...")
+        XCTAssertEqual(fields.dueDate?.year, 2026)
+        XCTAssertEqual(fields.dueDate?.month, 10)
+        XCTAssertEqual(fields.dueDate?.day, 5)
+        XCTAssertEqual(fields.dueDate?.hour, 9)
+        XCTAssertEqual(fields.recurrence, ReminderRecurrence(frequency: .weekly, weekdays: [.monday]))
+    }
+
+    func testEveryFollowedByPunctuationStillAllowsEventTiming() {
+        let fields = QuickAddParser.parse("Standup every ! tomorrow 9am", mode: .event,
+            calendar: regressionCalendar, now: regressionNow)
+        XCTAssertEqual(fields.title, "Standup every !")
+        XCTAssertEqual(fields.eventTiming?.isAllDay, false)
+        XCTAssertEqual(fields.eventTiming?.start.year, 2026)
+        XCTAssertEqual(fields.eventTiming?.start.month, 10)
+        XCTAssertEqual(fields.eventTiming?.start.day, 1)
+        XCTAssertEqual(fields.eventTiming?.start.hour, 9)
+        XCTAssertEqual(fields.eventTiming?.end.hour, 10)
+    }
+
+    func testPriorityEditPreservesTheOriginalKeptDateAfterPrependingAnIdenticalDate() throws {
+        let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: regressionCalendar, now: { self.regressionNow })
+        draft.text = "Review \tOct   15\t tail P1"
+        try keepToken(.date, asTextIn: draft)
+        draft.text = "Oct 15 2099 " + draft.text
+        XCTAssertEqual(draft.fields.dueDate?.year, 2099)
+        draft.applyPriority(9)
+        XCTAssertEqual(draft.text, "Oct 15 2099 Review Oct 15 tail P3")
+        XCTAssertEqual(draft.fields.title, "Review Oct 15 tail")
+        XCTAssertEqual(draft.fields.dueDate?.year, 2099)
+        XCTAssertEqual(draft.fields.priority, 9)
+        XCTAssertEqual(draft.suppressedTokens.map(\.range), [NSRange(location: 19, length: 6)])
+    }
+}
+
+extension QuickAddDraftTests {
+    func testKeptNoteWithTrailingWhitespaceSurvivesAppendingMetadata() throws {
+        let edits: [(String, String, (QuickAddDraft) -> Void)] = [
+            ("priority", "P1", { $0.applyPriority(1) }),
+            ("tag", "@", { $0.addTagEntry() }),
+            ("list", "#Work", { $0.selectList(CalendarDestinationInfo(id: "work", title: "Work")) }),
+            ("event length", "for 45m", { $0.mode = .event; $0.applyEventLength(.duration(.minutes(45))) })
+        ]
+        for whitespace in [" ", " \t\n", "\u{00a0}\u{2003}"] {
+            for (name, token, edit) in edits {
+                let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: regressionCalendar,
+                    now: { self.regressionNow })
+                draft.text = "Buy milk tomorrow 3pm // note text" + whitespace
+                try keepToken(.note, asTextIn: draft)
+                edit(draft)
+                XCTAssertEqual(draft.text, "Buy milk tomorrow 3pm // note text " + token, name)
+                XCTAssertEqual(draft.suppressedTokens.map(\.text), ["// note text"], name)
+                XCTAssertEqual(draft.fields.title, "Buy milk // note text", name)
+                XCTAssertNil(draft.fields.inlineNotes, name)
+                if name == "priority" { XCTAssertEqual(draft.fields.priority, 1) }
+            }
+        }
+    }
+
+    func testKeptNoteWithoutADateSurvivesPriorityInsertion() throws {
+        let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: regressionCalendar,
+            now: { self.regressionNow })
+        draft.text = "Review // literal "
+        try keepToken(.note, asTextIn: draft)
+        draft.applyPriority(9)
+        XCTAssertEqual(draft.text, "Review // literal P3")
+        XCTAssertEqual(draft.suppressedTokens.map(\.text), ["// literal"])
+        XCTAssertEqual(draft.fields.title, "Review // literal")
+        XCTAssertEqual(draft.fields.priority, 9)
+        XCTAssertNil(draft.fields.inlineNotes)
+    }
+
+    func testPriorityEditOfTenThousandUnicodeNoteWordsCompletesWithinOneSecond() {
+        let input = "Review P1 // " + Array(repeating: "café 🧑‍💻", count: 10_000).joined(separator: " ")
+        let start = ProcessInfo.processInfo.systemUptime
+        let edit = QuickAddTokenEditor.applyingPriority(9, to: input,
+            calendar: regressionCalendar, now: regressionNow)
+        let elapsed = ProcessInfo.processInfo.systemUptime - start
+        XCTAssertEqual(edit.text, "Review P3 // " + Array(repeating: "café 🧑‍💻", count: 10_000).joined(separator: " "))
+        XCTAssertLessThan(elapsed, 1)
+    }
+
+    func testMetadataEditorsPreserveDistinctKeptDatesAcrossWhitespaceChanges() throws {
+        let selection = QuickAddDueDateSelection(
+            date: regressionCalendar.date(from: DateComponents(year: 2026, month: 10, day: 2))!,
+            includesTime: false)
+        let edits: [(String, (QuickAddDraft) -> Void)] = [
+            ("pick date", { $0.applyDueDate(selection) }),
+            ("clear date", { $0.applyDueDate(nil) }),
+            ("event length", { $0.mode = .event; $0.applyEventLength(.duration(.minutes(30))) }),
+            ("pick list", { $0.selectList(CalendarDestinationInfo(id: "work", title: "Work")) }),
+            ("clear list", { $0.useDefaultList() }),
+            ("pick priority", { $0.applyPriority(9) }),
+            ("add tag", { $0.addTagEntry() }),
+            ("edit tag", { $0.editTag(at: 0) }),
+            ("remove tag", { $0.removeTag(at: 0) })
+        ]
+        for (name, edit) in edits {
+            let draft = QuickAddDraft(settingsStore: makeSettings(), calendar: regressionCalendar,
+                now: { self.regressionNow })
+            draft.text = "📞 Pay  Oct 15 2099  then  Oct 15 2099  tomorrow 3pm #Home @work P1 // note"
+            try keepToken(.date, asTextIn: draft)
+            try keepToken(.date, asTextIn: draft)
+            edit(draft)
+            XCTAssertEqual(draft.suppressedTokens.map(\.text), ["Oct 15 2099", "Oct 15 2099"], name)
+            XCTAssertEqual(Set(draft.suppressedTokens.map(\.range.location)).count, 2, name)
+            XCTAssertTrue(draft.fields.title.contains("📞 Pay Oct 15 2099 then Oct 15 2099"), name)
+            XCTAssertEqual(draft.fields.inlineNotes, "note", name)
+        }
     }
 }

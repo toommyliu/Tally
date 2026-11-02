@@ -291,10 +291,10 @@ final class QuickAddEventParserTests: XCTestCase {
     }
 
     func testAlertAppliesToARangeStart() {
-        let fields = parse("Dentist tomorrow 2-3pm remind me 30m before")
+        let fields = parse("Dentist tomorrow 2-3pm !30m")
 
         XCTAssertEqual(fields.title, "Dentist")
-        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: 30, unit: .minutes))
+        XCTAssertEqual(fields.earlyReminder?.eventValue?.secondsBeforeStart, 1800)
     }
 
     func testCalendarTokenAndPriorityInEventMode() {
@@ -313,7 +313,7 @@ final class QuickAddEventParserTests: XCTestCase {
             to: "Standup tomorrow 2-3pm",
             calendar: calendar,
             now: now
-        )
+        ).text
 
         XCTAssertEqual(updated, "Standup tomorrow 2:00pm for 30m")
         let timing = try XCTUnwrap(parse(updated).eventTiming)
@@ -327,7 +327,7 @@ final class QuickAddEventParserTests: XCTestCase {
             to: "Shift tomorrow 11pm-1am",
             calendar: calendar,
             now: now
-        )
+        ).text
         let fields = parse(updated)
 
         XCTAssertEqual(fields.title, "Shift")
@@ -344,7 +344,7 @@ final class QuickAddEventParserTests: XCTestCase {
         ] {
             let updated = QuickAddTokenEditor.applyingEventLength(
                 .duration(.minutes(30)), to: input, calendar: calendar, now: now
-            )
+            ).text
             let fields = parse(updated)
             let isRecurring = input.contains("every")
 
@@ -364,7 +364,7 @@ final class QuickAddEventParserTests: XCTestCase {
             to: "Call tomorrow 3pm for 45m",
             calendar: calendar,
             now: now
-        )
+        ).text
 
         XCTAssertEqual(updated, "Call tomorrow 3:00pm for 1h30m")
     }
@@ -375,7 +375,7 @@ final class QuickAddEventParserTests: XCTestCase {
             to: "Shift 2026-11-01 12:30am-2:30am",
             calendar: calendar,
             now: now
-        )
+        ).text
 
         let timing = try XCTUnwrap(parse(updated).eventTiming)
         assert(timing.start, day: 1, month: 11, hour: 0, minute: 30)
@@ -388,7 +388,7 @@ final class QuickAddEventParserTests: XCTestCase {
             to: "Call tomorrow 3pm for 45m",
             calendar: calendar,
             now: now
-        )
+        ).text
 
         XCTAssertEqual(updated, "Call 2026-10-01")
         let timing = try XCTUnwrap(parse(updated).eventTiming)
@@ -403,7 +403,7 @@ final class QuickAddEventParserTests: XCTestCase {
         ] {
             let updated = QuickAddTokenEditor.applyingEventLength(
                 .allDay, to: input, calendar: calendar, now: now
-            )
+            ).text
             let fields = parse(updated)
 
             XCTAssertEqual(fields.title, "Gym", updated)
@@ -416,18 +416,18 @@ final class QuickAddEventParserTests: XCTestCase {
         }
     }
 
-    func testPickingAllDayPreservesUntilDateAndRemovesTimedAlert() throws {
+    func testPickingAllDayPreservesUntilDateAndWarnsForTimedAlert() throws {
         let updated = QuickAddTokenEditor.applyingEventLength(
             .allDay,
-            to: "Gym every monday at 2pm until 2026-10-26 remind 30m early",
+            to: "Gym every monday at 2pm until 2026-10-26 !30m",
             calendar: calendar, now: now
-        )
+        ).text
         let fields = parse(updated)
 
-        XCTAssertEqual(updated, "Gym every monday until 2026-10-26")
+        XCTAssertEqual(updated, "Gym every monday until 2026-10-26 !30m")
         XCTAssertEqual(fields.title, "Gym")
         XCTAssertEqual(fields.eventTiming?.isAllDay, true)
-        XCTAssertNil(fields.earlyReminder)
+        XCTAssertEqual(fields.earlyReminder?.warning, "Add a time")
         guard case let .date(end) = fields.recurrence?.end else {
             return XCTFail("Expected a recurrence end date")
         }
@@ -446,7 +446,7 @@ final class QuickAddEventParserTests: XCTestCase {
             calendar: calendar,
             now: now,
             mode: .event
-        )
+        ).text
 
         XCTAssertEqual(updated, "Call 2026-10-06 4:00pm for 1h for 45m")
         XCTAssertEqual(parse(updated).title, "Call for 45m")
@@ -471,7 +471,7 @@ final class QuickAddEventParserTests: XCTestCase {
         for (input, title, lastDay) in cases {
             let updated = QuickAddTokenEditor.applyingDueDate(
                 selection, to: input, calendar: calendar, now: now, mode: .event
-            )
+            ).text
             let fields = parse(updated)
 
             XCTAssertEqual(fields.title, title, updated)
@@ -491,7 +491,7 @@ final class QuickAddEventParserTests: XCTestCase {
         for input in ["Review tomorrow 2-4pm", "Review tomorrow 11pm-1am"] {
             let updated = QuickAddTokenEditor.applyingDueDate(
                 selection, to: input, calendar: calendar, now: now, mode: .event
-            )
+            ).text
             let fields = parse(updated)
 
             XCTAssertEqual(fields.title, "Review")
@@ -554,5 +554,20 @@ final class QuickAddEventParserTests: XCTestCase {
         XCTAssertEqual(components.day, day, file: file, line: line)
         XCTAssertEqual(components.hour, hour, file: file, line: line)
         XCTAssertEqual(components.minute, minute, file: file, line: line)
+    }
+}
+
+extension QuickAddEventParserTests {
+    func testUnsupportedRecurrenceKeepsEventTimingLiteral() {
+        for tail in ["2-3pm", "for 45m", "for 45m tomorrow"] {
+            let input = "Standup every \(tail)"
+            let fields = parse(input)
+            XCTAssertEqual(fields.title, input, input)
+            XCTAssertEqual(fields.eventTiming?.isAllDay, true, input)
+            XCTAssertEqual(fields.eventTiming?.start.day, 30, input)
+            XCTAssertNil(fields.eventDuration, input)
+            XCTAssertNil(fields.recurrence, input)
+            XCTAssertTrue(fields.usedTokens.isEmpty, input)
+        }
     }
 }

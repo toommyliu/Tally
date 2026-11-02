@@ -64,6 +64,12 @@
 		A70000000000000000000006 /* CalendarEventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000106 /* CalendarEventStore.swift */; };
 		B80000000000000000000001 /* QuickAddEventParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80000000000000000000101 /* QuickAddEventParserTests.swift */; };
 		B80000000000000000000002 /* CalendarEventEventKitMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80000000000000000000102 /* CalendarEventEventKitMapperTests.swift */; };
+		AF14A5BA236EC779A3778772 /* QuickAddDurationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */; };
+		3AABA70557D9BBF139C0DB6E /* ScheduleOffset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F67FBF64E74658A1D4DB128 /* ScheduleOffset.swift */; };
+		736FC883B1826096C380C3E3 /* CalendarEventAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */; };
+		9D69096AE72C201ED245055E /* QuickAddEarlyReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */; };
+		42DE42FFAAE54136485159A9 /* QuickAddEarlyReminderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */; };
+		88042B89C028E130ABF3E12E /* QuickAddEarlyReminderPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF455A640EDB939B5426E5EC /* QuickAddEarlyReminderPopover.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -140,6 +146,12 @@
 		A70000000000000000000106 /* CalendarEventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventStore.swift; sourceTree = "<group>"; };
 		B80000000000000000000101 /* QuickAddEventParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEventParserTests.swift; sourceTree = "<group>"; };
 		B80000000000000000000102 /* CalendarEventEventKitMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventEventKitMapperTests.swift; sourceTree = "<group>"; };
+		AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddDurationParser.swift; sourceTree = "<group>"; };
+		4F67FBF64E74658A1D4DB128 /* ScheduleOffset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleOffset.swift; sourceTree = "<group>"; };
+		4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventAlert.swift; sourceTree = "<group>"; };
+		B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminder.swift; sourceTree = "<group>"; };
+		4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminderTests.swift; sourceTree = "<group>"; };
+		BF455A640EDB939B5426E5EC /* QuickAddEarlyReminderPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminderPopover.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -214,6 +226,9 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000104 /* QuickAddParser.swift */,
+				BF455A640EDB939B5426E5EC /* QuickAddEarlyReminderPopover.swift */,
+				B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */,
+				AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */,
 				C30000000000000000000102 /* QuickAddParsingSupport.swift */,
 				C30000000000000000000103 /* QuickAddReminderMetadataParser.swift */,
 				10000000000000000000011C /* QuickAddDueDateTokenEditor.swift */,
@@ -236,6 +251,8 @@
 				100000000000000000000105 /* ReminderItem.swift */,
 				A10000000000000000000101 /* ReminderCreationRequest.swift */,
 				C30000000000000000000101 /* ReminderSchedule.swift */,
+				4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */,
+				4F67FBF64E74658A1D4DB128 /* ScheduleOffset.swift */,
 				100000000000000000000111 /* ReminderFormatting.swift */,
 				100000000000000000000113 /* AppSettings.swift */,
 				A70000000000000000000103 /* CalendarEventFormatting.swift */,
@@ -280,6 +297,7 @@
 			isa = PBXGroup;
 			children = (
 				10000000000000000000010B /* QuickAddParserTests.swift */,
+				4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */,
 				10000000000000000000011B /* AppSettingsStoreTests.swift */,
 				A10000000000000000000106 /* ReminderCreationRequestTests.swift */,
 				A10000000000000000000107 /* QuickAddDraftTests.swift */,
@@ -427,12 +445,17 @@
 			files = (
 				100000000000000000000001 /* TallyApp.swift in Sources */,
 				100000000000000000000004 /* QuickAddParser.swift in Sources */,
+				88042B89C028E130ABF3E12E /* QuickAddEarlyReminderPopover.swift in Sources */,
+				9D69096AE72C201ED245055E /* QuickAddEarlyReminder.swift in Sources */,
+				AF14A5BA236EC779A3778772 /* QuickAddDurationParser.swift in Sources */,
 				C30000000000000000000002 /* QuickAddParsingSupport.swift in Sources */,
 				C30000000000000000000003 /* QuickAddReminderMetadataParser.swift in Sources */,
 				100000000000000000000018 /* QuickAddDueDateTokenEditor.swift in Sources */,
 				100000000000000000000019 /* DueDatePickerPopover.swift in Sources */,
 				100000000000000000000005 /* ReminderItem.swift in Sources */,
 				C30000000000000000000001 /* ReminderSchedule.swift in Sources */,
+				736FC883B1826096C380C3E3 /* CalendarEventAlert.swift in Sources */,
+				3AABA70557D9BBF139C0DB6E /* ScheduleOffset.swift in Sources */,
 				100000000000000000000006 /* ReminderStore.swift in Sources */,
 				C30000000000000000000004 /* ReminderEventKitMapper.swift in Sources */,
 				E50000000000000000000001 /* ReminderRecurrenceCalculator.swift in Sources */,
@@ -476,6 +499,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000008 /* QuickAddParserTests.swift in Sources */,
+				42DE42FFAAE54136485159A9 /* QuickAddEarlyReminderTests.swift in Sources */,
 				100000000000000000000017 /* AppSettingsStoreTests.swift in Sources */,
 				A10000000000000000000006 /* ReminderCreationRequestTests.swift in Sources */,
 				A10000000000000000000007 /* QuickAddDraftTests.swift in Sources */,

@@ -9,24 +9,26 @@ enum CalendarEventEventKitMapper {
         dateCalendar: Calendar = .current
     ) throws {
         let isAllDay = request.timing.isAllDay
-        guard let startDate = date(from: request.timing.start, in: dateCalendar, isAllDay: isAllDay),
-              let endDate = date(from: request.timing.end, in: dateCalendar, isAllDay: isAllDay) else {
+        var placementCalendar = dateCalendar
+        if isAllDay { placementCalendar.timeZone = .current }
+        guard let dates = request.timing.eventKitDates(in: placementCalendar) else {
             throw CalendarEventMappingError.invalidDates
         }
+        guard !isAllDay || request.alert == nil else { throw CalendarEventMappingError.invalidAlert }
 
         event.title = request.title
         event.calendar = calendar
         event.isAllDay = isAllDay
         // All-day events float with the viewer; timed events keep the zone they were typed in.
         event.timeZone = isAllDay ? nil : request.timing.start.timeZone ?? dateCalendar.timeZone
-        event.startDate = startDate
+        event.startDate = dates.start
         // EventKit stretches an all-day end to cover the whole last day.
-        event.endDate = endDate
+        event.endDate = dates.end
         event.notes = request.combinedNotes
         event.url = request.url
 
         if let alert = request.alert {
-            event.addAlarm(EKAlarm(relativeOffset: -offset(for: alert)))
+            event.addAlarm(EKAlarm(relativeOffset: -alert.secondsBeforeStart))
         }
 
         // Calendar keeps count-based ends natively, unlike Reminders.
@@ -36,52 +38,16 @@ enum CalendarEventEventKitMapper {
         }
     }
 
-    static func offset(for alert: ReminderEarlyReminder) -> TimeInterval {
-        let minutes: Int
-        switch alert.unit {
-        case .minutes:
-            minutes = alert.amount
-        case .hours:
-            minutes = alert.amount * 60
-        case .days:
-            minutes = alert.amount * 60 * 24
-        case .weeks:
-            minutes = alert.amount * 60 * 24 * 7
-        }
-
-        return TimeInterval(minutes * 60)
-    }
-
-    /// EventKit reads floating all-day dates in the system time zone, so the
-    /// day is placed there regardless of the zone it was parsed in.
-    private static func date(
-        from components: DateComponents,
-        in calendar: Calendar,
-        isAllDay: Bool
-    ) -> Date? {
-        var calendar = components.calendar ?? calendar
-
-        if isAllDay {
-            calendar.timeZone = .current
-            return calendar.date(from: DateComponents(
-                year: components.year,
-                month: components.month,
-                day: components.day
-            ))
-        }
-
-        if let timeZone = components.timeZone {
-            calendar.timeZone = timeZone
-        }
-
-        return calendar.date(from: components)
-    }
 }
 
-enum CalendarEventMappingError: LocalizedError {
+enum CalendarEventMappingError: LocalizedError, Equatable {
     case invalidDates
+    case invalidAlert
 
     var errorDescription: String? {
-        "The event's start or end time isn't a valid date."
+        switch self {
+        case .invalidDates: "The event's start or end time isn't a valid date."
+        case .invalidAlert: "Add a time to set an event alert."
+        }
     }
 }

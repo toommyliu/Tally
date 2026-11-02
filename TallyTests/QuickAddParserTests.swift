@@ -72,7 +72,7 @@ final class QuickAddParserTests: XCTestCase {
         let date = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 30)
         let selection = QuickAddDueDateSelection(date: date, includesTime: false)
 
-        let output = QuickAddDueDateTokenEditor.applying(selection, to: "Renew license", calendar: calendar)
+        let output = QuickAddDueDateTokenEditor.applying(selection, to: "Renew license", calendar: calendar).text
 
         XCTAssertEqual(output, "Renew license 2026-08-14")
     }
@@ -81,7 +81,7 @@ final class QuickAddParserTests: XCTestCase {
         let date = try date(year: 2026, month: 8, day: 14, hour: 15, minute: 30)
         let selection = QuickAddDueDateSelection(date: date, includesTime: true)
 
-        let output = QuickAddDueDateTokenEditor.applying(selection, to: "Renew license", calendar: calendar)
+        let output = QuickAddDueDateTokenEditor.applying(selection, to: "Renew license", calendar: calendar).text
 
         XCTAssertEqual(output, "Renew license 2026-08-14 3:30pm")
     }
@@ -94,7 +94,7 @@ final class QuickAddParserTests: XCTestCase {
             selection,
             to: "Renew license 2026-06-04 #Work P2",
             calendar: calendar
-        )
+        ).text
 
         XCTAssertEqual(output, "Renew license 2026-08-14 #Work P2")
     }
@@ -109,7 +109,7 @@ final class QuickAddParserTests: XCTestCase {
             to: "Call Sam today at 3:30pm #Work",
             calendar: calendar,
             now: now
-        )
+        ).text
 
         XCTAssertEqual(output, "Call Sam 2026-08-14 3:30pm #Work")
     }
@@ -124,13 +124,13 @@ final class QuickAddParserTests: XCTestCase {
             to: "Review notes later today P2",
             calendar: calendar,
             now: now
-        )
+        ).text
         let relativeHours = QuickAddDueDateTokenEditor.applying(
             selection,
             to: "Submit report in 2 hours P1",
             calendar: calendar,
             now: now
-        )
+        ).text
 
         XCTAssertEqual(laterToday, "Review notes 2026-08-14 3:30pm P2")
         XCTAssertEqual(relativeHours, "Submit report 2026-08-14 3:30pm P1")
@@ -144,13 +144,13 @@ final class QuickAddParserTests: XCTestCase {
             to: "Call Sam today at 3:30pm #Work @phone P1",
             calendar: calendar,
             now: now
-        )
+        ).text
         let relativeTime = QuickAddDueDateTokenEditor.applying(
             nil,
             to: "Review notes later today #Work P2",
             calendar: calendar,
             now: now
-        )
+        ).text
 
         XCTAssertEqual(dateAndTime, "Call Sam #Work @phone P1")
         XCTAssertEqual(relativeTime, "Review notes #Work P2")
@@ -176,7 +176,7 @@ final class QuickAddParserTests: XCTestCase {
                     text: (input as NSString).substring(with: token.range)
                 )
             ]
-        )
+        ).text
 
         XCTAssertEqual(output, "Dinner 6pm 2026-08-14")
     }
@@ -247,16 +247,16 @@ final class QuickAddParserTests: XCTestCase {
     }
 
     func testTagTokenEditorRemovesSpecificTag() {
-        let firstRemoved = QuickAddTokenEditor.removingTag(at: 0, from: "Call Sam @phone @work", calendar: calendar)
-        let secondRemoved = QuickAddTokenEditor.removingTag(at: 1, from: "Call Sam @phone @work", calendar: calendar)
+        let firstRemoved = QuickAddTokenEditor.removingTag(at: 0, from: "Call Sam @phone @work", calendar: calendar).text
+        let secondRemoved = QuickAddTokenEditor.removingTag(at: 1, from: "Call Sam @phone @work", calendar: calendar).text
 
         XCTAssertEqual(firstRemoved, "Call Sam @work")
         XCTAssertEqual(secondRemoved, "Call Sam @phone")
     }
 
     func testListTokenEditorReplacesExistingListTokens() {
-        let single = QuickAddTokenEditor.applyingList("Deep Work", to: "Call Sam #Home P1", calendar: calendar)
-        let multiple = QuickAddTokenEditor.applyingList("Errands", to: "Call Sam #Home #Work P1", calendar: calendar)
+        let single = QuickAddTokenEditor.applyingList("Deep Work", to: "Call Sam #Home P1", calendar: calendar).text
+        let multiple = QuickAddTokenEditor.applyingList("Errands", to: "Call Sam #Home #Work P1", calendar: calendar).text
 
         XCTAssertEqual(single, "Call Sam #Deep%20Work P1")
         XCTAssertEqual(multiple, "Call Sam #Errands P1")
@@ -264,8 +264,8 @@ final class QuickAddParserTests: XCTestCase {
 
     func testMetadataEditorsInsertTokensBeforeInlineNotes() {
         let input = "Call Sam // Ask about renewal"
-        let withList = QuickAddTokenEditor.applyingList("Work", to: input, calendar: calendar)
-        let withPriority = QuickAddTokenEditor.applyingPriority(1, to: input, calendar: calendar)
+        let withList = QuickAddTokenEditor.applyingList("Work", to: input, calendar: calendar).text
+        let withPriority = QuickAddTokenEditor.applyingPriority(1, to: input, calendar: calendar).text
         let withTag = QuickAddTokenEditor.addingTagEntry(in: input, calendar: calendar)
 
         XCTAssertEqual(withList, "Call Sam #Work // Ask about renewal")
@@ -275,9 +275,9 @@ final class QuickAddParserTests: XCTestCase {
     }
 
     func testPriorityTokenEditorReplacesAndClearsExistingPriorityTokens() {
-        let inserted = QuickAddTokenEditor.applyingPriority(1, to: "Call Sam #Work", calendar: calendar)
-        let replaced = QuickAddTokenEditor.applyingPriority(5, to: "Call Sam P1 #Work", calendar: calendar)
-        let cleared = QuickAddTokenEditor.applyingPriority(0, to: "Call Sam P1 P2 #Work", calendar: calendar)
+        let inserted = QuickAddTokenEditor.applyingPriority(1, to: "Call Sam #Work", calendar: calendar).text
+        let replaced = QuickAddTokenEditor.applyingPriority(5, to: "Call Sam P1 #Work", calendar: calendar).text
+        let cleared = QuickAddTokenEditor.applyingPriority(0, to: "Call Sam P1 P2 #Work", calendar: calendar).text
 
         XCTAssertEqual(inserted, "Call Sam #Work P1")
         XCTAssertEqual(replaced, "Call Sam P2 #Work")
@@ -994,7 +994,7 @@ final class QuickAddParserTests: XCTestCase {
             to: input,
             calendar: calendar,
             now: now
-        )
+        ).text
 
         XCTAssertEqual(output, "Standup #Work")
     }
@@ -1112,7 +1112,7 @@ final class QuickAddParserTests: XCTestCase {
             to: input,
             calendar: calendar,
             now: now
-        )
+        ).text
         let fields = QuickAddParser.parse(output, calendar: calendar, now: now)
 
         XCTAssertEqual(output, "Review remind 2h early 2026-08-14 3:00pm")

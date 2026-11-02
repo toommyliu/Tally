@@ -51,13 +51,18 @@ final class QuickAddDraft: ObservableObject {
     private var selectedList: CalendarDestinationInfo?
     private let settingsStore: AppSettingsStore
 
-    init(settingsStore: AppSettingsStore) {
+    private let calendar: Calendar
+    private let now: () -> Date
+
+    init(settingsStore: AppSettingsStore, calendar: Calendar = .current, now: @escaping () -> Date = Date.init) {
+        self.calendar = calendar
+        self.now = now
         self.settingsStore = settingsStore
         keepsOpenAfterAdd = settingsStore.quickAddBehavior == .keepOpen
     }
 
     var fields: QuickAddFields {
-        QuickAddParser.parse(text, mode: mode, suppressedTokens: suppressedTokens)
+        QuickAddParser.parse(text, mode: mode, calendar: calendar, now: now(), suppressedTokens: suppressedTokens)
     }
 
     var canSubmit: Bool {
@@ -80,7 +85,7 @@ final class QuickAddDraft: ObservableObject {
     }
 
     func makeReminderRequest() -> ReminderCreationRequest? {
-        let fields = QuickAddParser.parse(text, mode: .reminder, suppressedTokens: suppressedTokens)
+        let fields = QuickAddParser.parse(text, mode: .reminder, calendar: calendar, now: now(), suppressedTokens: suppressedTokens)
         guard !fields.title.isEmpty else {
             return nil
         }
@@ -101,7 +106,7 @@ final class QuickAddDraft: ObservableObject {
     }
 
     func makeEventRequest() -> CalendarEventCreationRequest? {
-        let fields = QuickAddParser.parse(text, mode: .event, suppressedTokens: suppressedTokens)
+        let fields = QuickAddParser.parse(text, mode: .event, calendar: calendar, now: now(), suppressedTokens: suppressedTokens)
         guard !fields.title.isEmpty, let timing = fields.eventTiming else {
             return nil
         }
@@ -124,6 +129,8 @@ final class QuickAddDraft: ObservableObject {
         let updatedText = QuickAddTokenEditor.applyingDueDate(
             selection,
             to: text,
+            calendar: calendar,
+            now: now(),
             suppressedTokens: suppressedTokens,
             mode: mode
         )
@@ -134,6 +141,8 @@ final class QuickAddDraft: ObservableObject {
         let updatedText = QuickAddTokenEditor.applyingEventLength(
             length,
             to: text,
+            calendar: calendar,
+            now: now(),
             suppressedTokens: suppressedTokens
         )
         applyProgrammaticTextEdit(updatedText)
@@ -144,6 +153,8 @@ final class QuickAddDraft: ObservableObject {
         let updatedText = QuickAddTokenEditor.applyingList(
             list.title,
             to: text,
+            calendar: calendar,
+            now: now(),
             suppressedTokens: suppressedTokens,
             mode: mode
         )
@@ -164,6 +175,8 @@ final class QuickAddDraft: ObservableObject {
         let updatedText = QuickAddTokenEditor.applyingPriority(
             priority,
             to: text,
+            calendar: calendar,
+            now: now(),
             suppressedTokens: suppressedTokens,
             mode: mode
         )
@@ -176,7 +189,7 @@ final class QuickAddDraft: ObservableObject {
             suppressedTokens: suppressedTokens,
             mode: mode
         )
-        applyProgrammaticTextEdit(edit.text)
+        applyProgrammaticTextEdit(edit)
         selectedRangeRequest = edit.selectedRange
     }
 
@@ -187,7 +200,7 @@ final class QuickAddDraft: ObservableObject {
             suppressedTokens: suppressedTokens,
             mode: mode
         )
-        applyProgrammaticTextEdit(edit.text)
+        applyProgrammaticTextEdit(edit)
         selectedRangeRequest = edit.selectedRange
     }
 
@@ -284,15 +297,9 @@ final class QuickAddDraft: ObservableObject {
         confirmationMessage = nil
     }
 
-    /// Keeps unchanged literal opt-outs attached across token-editor rewrites.
-    private func applyProgrammaticTextEdit(_ updatedText: String) {
-        let preservedSuppressions = Self.reanchoredSuppressions(
-            suppressedTokens,
-            from: text,
-            to: updatedText
-        )
-        text = updatedText
-        suppressedTokens = preservedSuppressions
+    private func applyProgrammaticTextEdit(_ edit: QuickAddTextEdit) {
+        text = edit.text
+        suppressedTokens = edit.suppressedTokens
     }
 
     private static func token(_ token: QuickAddToken, intersects selectedRange: NSRange) -> Bool {
@@ -353,108 +360,6 @@ final class QuickAddDraft: ObservableObject {
                 text: suppression.text
             )
         }
-    }
-
-    /// Reanchors unchanged literal opt-outs after a programmatic edit performs several removals.
-    private static func reanchoredSuppressions(
-        _ suppressions: [QuickAddSuppressedToken],
-        from oldText: String,
-        to newText: String
-    ) -> [QuickAddSuppressedToken] {
-        guard oldText != newText else {
-            return suppressions
-        }
-
-        return suppressions.compactMap { suppression in
-            let candidates = ranges(of: suppression.text, in: newText)
-            guard !candidates.isEmpty else {
-                return nil
-            }
-
-            guard let range = candidates.max(by: { lhs, rhs in
-                suppressionContextScore(
-                    candidate: lhs,
-                    suppression: suppression,
-                    oldText: oldText,
-                    newText: newText
-                ) < suppressionContextScore(
-                    candidate: rhs,
-                    suppression: suppression,
-                    oldText: oldText,
-                    newText: newText
-                )
-            }) else {
-                return nil
-            }
-
-            return QuickAddSuppressedToken(
-                kind: suppression.kind,
-                range: range,
-                text: suppression.text
-            )
-        }
-    }
-
-    private static func suppressionContextScore(
-        candidate: NSRange,
-        suppression: QuickAddSuppressedToken,
-        oldText: String,
-        newText: String
-    ) -> Int {
-        let old = oldText as NSString
-        let new = newText as NSString
-        let oldPrefix = old.substring(to: suppression.range.location)
-        let newPrefix = new.substring(to: candidate.location)
-        let oldSuffix = old.substring(from: NSMaxRange(suppression.range))
-        let newSuffix = new.substring(from: NSMaxRange(candidate))
-
-        var score = commonSuffixLength(oldPrefix, newPrefix) +
-            commonPrefixLength(oldSuffix, newSuffix)
-
-        if oldPrefix.isEmpty && newPrefix.isEmpty {
-            score += 10_000
-        }
-        if oldSuffix.isEmpty && newSuffix.isEmpty {
-            score += 10_000
-        }
-
-        return score
-    }
-
-    private static func commonPrefixLength(_ lhs: String, _ rhs: String) -> Int {
-        let lhsUnits = Array(lhs.utf16)
-        let rhsUnits = Array(rhs.utf16)
-        return zip(lhsUnits, rhsUnits).prefix { pair in pair.0 == pair.1 }.count
-    }
-
-    private static func commonSuffixLength(_ lhs: String, _ rhs: String) -> Int {
-        commonPrefixLength(String(lhs.reversed()), String(rhs.reversed()))
-    }
-
-    private static func ranges(of text: String, in input: String) -> [NSRange] {
-        guard !text.isEmpty else {
-            return []
-        }
-
-        let searchableText = input as NSString
-        var searchRange = NSRange(location: 0, length: searchableText.length)
-        var matches: [NSRange] = []
-
-        while searchRange.length > 0 {
-            let match = searchableText.range(of: text, options: [], range: searchRange)
-            guard match.location != NSNotFound else {
-                break
-            }
-
-            matches.append(match)
-            let nextLocation = NSMaxRange(match)
-            searchRange = NSRange(
-                location: nextLocation,
-                length: searchableText.length - nextLocation
-            )
-        }
-
-        return matches
     }
 
     private static func editExtendsSuppressedToken(

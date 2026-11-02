@@ -177,7 +177,7 @@ enum QuickAddReminderMetadataParser {
     private static func earlyReminderDuration(
         at index: Int,
         in tokens: QuickAddParseWords
-    ) -> (amount: Int, unit: ReminderEarlyReminder.Unit, endIndex: Int)? {
+    ) -> (amount: EarlyReminderAmount, unit: ScheduleUnit, endIndex: Int)? {
         guard let value = normalizedToken(at: index, in: tokens) else {
             return nil
         }
@@ -185,8 +185,8 @@ enum QuickAddReminderMetadataParser {
         let digits = value.prefix { $0.isNumber }
 
         if !digits.isEmpty,
-           let amount = Int(digits),
-           amount > 0 {
+           let rawAmount = Int(digits),
+           let amount = EarlyReminderAmount(validating: rawAmount) {
             let suffix = String(value.dropFirst(digits.count))
 
             if !suffix.isEmpty,
@@ -204,7 +204,7 @@ enum QuickAddReminderMetadataParser {
         return nil
     }
 
-    private static func earlyReminderUnit(for token: String) -> ReminderEarlyReminder.Unit? {
+    private static func earlyReminderUnit(for token: String) -> ScheduleUnit? {
         switch QuickAddDurationParser.unit(token) {
         case .minutes: .minutes
         case .hours: .hours

@@ -120,7 +120,7 @@ final class QuickAddDraft: ObservableObject {
             calendarName: fields.listName,
             timing: timing,
             recurrence: fields.recurrence,
-            alert: fields.earlyReminder,
+            alert: fields.earlyReminder.flatMap(CalendarEventAlert.init(offset:)),
             url: fields.url
         )
     }

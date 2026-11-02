@@ -294,7 +294,7 @@ final class QuickAddEventParserTests: XCTestCase {
         let fields = parse("Dentist tomorrow 2-3pm remind me 30m before")
 
         XCTAssertEqual(fields.title, "Dentist")
-        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: 30, unit: .minutes))
+        XCTAssertEqual(fields.earlyReminder, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 30)!, unit: .minutes))
     }
 
     func testCalendarTokenAndPriorityInEventMode() {

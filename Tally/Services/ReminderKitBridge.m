@@ -128,7 +128,7 @@ static BOOL TallyApplyEarlyReminder(
     id changeItem,
     NSError * _Nullable * _Nullable error
 ) {
-    if (amount <= 0 || unit < 0 || unit > 3) {
+    if (amount <= 0 || amount > 99 || unit < TallyReminderKitDeltaUnitMinute || unit > TallyReminderKitDeltaUnitMonth) {
         return TallyReminderKitFail(
             error,
             TallyReminderKitErrorInvalidMetadata,
@@ -154,6 +154,15 @@ static BOOL TallyApplyEarlyReminder(
         unit,
         -amount
     );
+
+    SEL unitSelector = NSSelectorFromString(@"unit");
+    SEL countSelector = NSSelectorFromString(@"count");
+    if (![interval respondsToSelector:unitSelector] || ![interval respondsToSelector:countSelector] ||
+        ((NSInteger (*)(id, SEL))objc_msgSend)(interval, unitSelector) != unit ||
+        ((NSInteger (*)(id, SEL))objc_msgSend)(interval, countSelector) != -amount) {
+        return TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+            @"This macOS version cannot preserve the requested Early Reminder interval.");
+    }
 
     SEL contextSelector = NSSelectorFromString(@"dueDateDeltaAlertContext");
     if (![changeItem respondsToSelector:contextSelector]) {
@@ -193,7 +202,7 @@ BOOL TallyApplyReminderKitMetadata(
     EKReminder *reminder,
     NSURL * _Nullable url,
     NSInteger earlyReminderAmount,
-    NSInteger earlyReminderUnit,
+    TallyReminderKitDeltaUnit earlyReminderUnit,
     NSError * _Nullable * _Nullable error
 ) {
     if (url == nil && earlyReminderAmount == 0) {

@@ -1,9 +1,8 @@
 import Foundation
 
 enum QuickAddDurationParser {
-    enum Unit { case minutes, hours, days, weeks, months }
 
-    static func unit(_ text: String) -> Unit? {
+    static func unit(_ text: String) -> ScheduleUnit? {
         switch text {
         case "m", "min", "mins", "minute", "minutes": .minutes
         case "h", "hr", "hrs", "hour", "hours": .hours

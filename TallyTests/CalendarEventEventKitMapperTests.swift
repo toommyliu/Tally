@@ -17,7 +17,7 @@ final class CalendarEventEventKitMapperTests: XCTestCase {
                 end: components(day: 1, hour: 14, minute: 45),
                 isAllDay: false
             ),
-            alert: ReminderEarlyReminder(amount: 30, unit: .minutes)
+            alert: CalendarEventAlert(offset: ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 30)!, unit: .minutes))
         )
         let event = EKEvent(eventStore: eventStore)
 
@@ -103,10 +103,29 @@ final class CalendarEventEventKitMapperTests: XCTestCase {
         XCTAssertEqual(event.timeZone, dateCalendar.timeZone)
     }
 
-    func testAlertOffsetsCoverEveryUnit() {
-        XCTAssertEqual(CalendarEventEventKitMapper.offset(for: .init(amount: 2, unit: .hours)), 7_200)
-        XCTAssertEqual(CalendarEventEventKitMapper.offset(for: .init(amount: 1, unit: .days)), 86_400)
-        XCTAssertEqual(CalendarEventEventKitMapper.offset(for: .init(amount: 1, unit: .weeks)), 604_800)
+    func testAlertOffsetsCoverEveryUnit() throws {
+        for (amount, unit, seconds) in [(2, ScheduleUnit.hours, 7_200.0), (1, .days, 86_400), (1, .weeks, 604_800)] {
+            let request = makeRequest(
+                timing: CalendarEventTiming(start: components(day: 1, hour: 14, minute: 0),
+                                            end: components(day: 1, hour: 15, minute: 0), isAllDay: false),
+                alert: CalendarEventAlert(offset: ReminderEarlyReminder(amount: EarlyReminderAmount(validating: amount)!, unit: unit))
+            )
+            let event = EKEvent(eventStore: eventStore)
+            try CalendarEventEventKitMapper.populate(event, from: request, calendar: makeCalendar(), dateCalendar: dateCalendar)
+            XCTAssertEqual(event.alarms?.map(\.relativeOffset), [-seconds])
+            XCTAssertNil(event.alarms?.first?.absoluteDate)
+        }
+    }
+
+    func testAllDayEventRejectsAnAlert() {
+        let request = makeRequest(
+            timing: CalendarEventTiming(start: components(day: 1, hour: nil, minute: nil),
+                                        end: components(day: 1, hour: nil, minute: nil), isAllDay: true),
+            alert: CalendarEventAlert(offset: ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 1)!, unit: .days))
+        )
+        XCTAssertThrowsError(try CalendarEventEventKitMapper.populate(
+            EKEvent(eventStore: eventStore), from: request, calendar: makeCalendar(), dateCalendar: dateCalendar
+        )) { XCTAssertEqual($0 as? CalendarEventMappingError, .invalidAlert) }
     }
 
     private func makeCalendar() -> EKCalendar {
@@ -128,7 +147,7 @@ final class CalendarEventEventKitMapperTests: XCTestCase {
     private func makeRequest(
         timing: CalendarEventTiming,
         recurrence: ReminderRecurrence? = nil,
-        alert: ReminderEarlyReminder? = nil
+        alert: CalendarEventAlert? = nil
     ) -> CalendarEventCreationRequest {
         CalendarEventCreationRequest(
             title: "Design review",

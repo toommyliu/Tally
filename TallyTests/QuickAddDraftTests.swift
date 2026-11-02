@@ -96,7 +96,7 @@ final class QuickAddDraftTests: XCTestCase {
             request.recurrence,
             ReminderRecurrence(frequency: .weekly, weekdays: [.monday])
         )
-        XCTAssertEqual(request.earlyReminder, ReminderEarlyReminder(amount: 30, unit: .minutes))
+        XCTAssertEqual(request.earlyReminder, ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 30)!, unit: .minutes))
         XCTAssertEqual(request.url, URL(string: "https://example.com/metrics"))
     }
 
@@ -213,7 +213,7 @@ final class QuickAddDraftTests: XCTestCase {
         XCTAssertEqual(earlyReminderDraft.fields.title, "Review remind 30m early")
         XCTAssertEqual(
             earlyReminderDraft.fields.earlyReminder,
-            ReminderEarlyReminder(amount: 2, unit: .hours)
+            ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 2)!, unit: .hours)
         )
     }
 

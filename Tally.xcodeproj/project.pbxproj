@@ -65,6 +65,8 @@
 		B80000000000000000000001 /* QuickAddEventParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80000000000000000000101 /* QuickAddEventParserTests.swift */; };
 		B80000000000000000000002 /* CalendarEventEventKitMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80000000000000000000102 /* CalendarEventEventKitMapperTests.swift */; };
 		AF14A5BA236EC779A3778772 /* QuickAddDurationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */; };
+		3AABA70557D9BBF139C0DB6E /* ScheduleOffset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F67FBF64E74658A1D4DB128 /* ScheduleOffset.swift */; };
+		736FC883B1826096C380C3E3 /* CalendarEventAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -142,6 +144,8 @@
 		B80000000000000000000101 /* QuickAddEventParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEventParserTests.swift; sourceTree = "<group>"; };
 		B80000000000000000000102 /* CalendarEventEventKitMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventEventKitMapperTests.swift; sourceTree = "<group>"; };
 		AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddDurationParser.swift; sourceTree = "<group>"; };
+		4F67FBF64E74658A1D4DB128 /* ScheduleOffset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleOffset.swift; sourceTree = "<group>"; };
+		4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventAlert.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -239,6 +243,8 @@
 				100000000000000000000105 /* ReminderItem.swift */,
 				A10000000000000000000101 /* ReminderCreationRequest.swift */,
 				C30000000000000000000101 /* ReminderSchedule.swift */,
+				4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */,
+				4F67FBF64E74658A1D4DB128 /* ScheduleOffset.swift */,
 				100000000000000000000111 /* ReminderFormatting.swift */,
 				100000000000000000000113 /* AppSettings.swift */,
 				A70000000000000000000103 /* CalendarEventFormatting.swift */,
@@ -437,6 +443,8 @@
 				100000000000000000000019 /* DueDatePickerPopover.swift in Sources */,
 				100000000000000000000005 /* ReminderItem.swift in Sources */,
 				C30000000000000000000001 /* ReminderSchedule.swift in Sources */,
+				736FC883B1826096C380C3E3 /* CalendarEventAlert.swift in Sources */,
+				3AABA70557D9BBF139C0DB6E /* ScheduleOffset.swift in Sources */,
 				100000000000000000000006 /* ReminderStore.swift in Sources */,
 				C30000000000000000000004 /* ReminderEventKitMapper.swift in Sources */,
 				E50000000000000000000001 /* ReminderRecurrenceCalculator.swift in Sources */,

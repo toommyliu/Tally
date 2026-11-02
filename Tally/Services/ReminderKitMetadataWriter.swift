@@ -9,8 +9,8 @@ enum ReminderKitMetadataWriter {
         }
 
         var error: NSError?
-        let earlyReminderAmount = request.earlyReminder?.amount ?? 0
-        let earlyReminderUnit = request.earlyReminder.map { nativeUnit(for: $0.unit) } ?? 0
+        let earlyReminderAmount = request.earlyReminder?.amount.value ?? 0
+        let earlyReminderUnit = request.earlyReminder.map { nativeUnit(for: $0.unit) } ?? .minute
         let succeeded = TallyApplyReminderKitMetadata(
             reminder,
             request.url,
@@ -28,16 +28,18 @@ enum ReminderKitMetadataWriter {
         }
     }
 
-    private static func nativeUnit(for unit: ReminderEarlyReminder.Unit) -> Int {
+    private static func nativeUnit(for unit: ScheduleUnit) -> TallyReminderKitDeltaUnit {
         switch unit {
         case .minutes:
-            return 0
+            return .minute
         case .hours:
-            return 1
+            return .hour
         case .days:
-            return 2
+            return .day
         case .weeks:
-            return 3
+            return .week
+        case .months:
+            return .month
         }
     }
 }

@@ -9,6 +9,20 @@ struct CalendarEventTiming: Equatable {
     let end: DateComponents
     let isAllDay: Bool
 
+    func eventKitDates(in calendar: Calendar) -> (start: Date, end: Date)? {
+        func date(_ components: DateComponents) -> Date? {
+            var effective = components.calendar ?? calendar
+            if isAllDay {
+                effective.timeZone = calendar.timeZone
+                return effective.date(from: DateComponents(year: components.year, month: components.month, day: components.day))
+            }
+            effective.timeZone = components.timeZone ?? effective.timeZone
+            return effective.date(from: components)
+        }
+        guard let start = date(start), let end = date(end) else { return nil }
+        return (start, end)
+    }
+
     var durationMinutes: Int? {
         let calendar = Calendar.current
         guard let startDate = calendar.date(from: start),
@@ -29,7 +43,7 @@ struct CalendarEventCreationRequest: Equatable {
     let calendarName: String?
     let timing: CalendarEventTiming
     let recurrence: ReminderRecurrence?
-    let alert: ReminderEarlyReminder?
+    let alert: CalendarEventAlert?
     let url: URL?
 
     var destination: CalendarDestinationQuery {

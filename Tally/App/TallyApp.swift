@@ -29,6 +29,12 @@ final class TallyAppDelegate: NSObject, NSApplicationDelegate {
     let appController = AppController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Each test build has a new code signature, so a TCC request here prompts on every run
+        // and an approval replaces the installed app's Reminders grant.
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
+            return
+        }
+
         appController.configure(
             reminderStore: reminderStore,
             calendarEventStore: calendarEventStore,

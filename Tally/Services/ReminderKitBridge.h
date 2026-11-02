@@ -18,4 +18,11 @@ FOUNDATION_EXPORT BOOL TallyApplyReminderKitMetadata(
     NSError * _Nullable * _Nullable error
 );
 
+#if DEBUG
+FOUNDATION_EXPORT NSDictionary<NSString *, id> * _Nullable TallyReadReminderKitMetadata(
+    EKReminder *reminder,
+    NSError * _Nullable * _Nullable error
+);
+#endif
+
 NS_ASSUME_NONNULL_END

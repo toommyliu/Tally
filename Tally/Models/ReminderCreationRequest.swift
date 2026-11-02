@@ -21,3 +21,21 @@ struct ReminderCreationRequest: Equatable {
         CombinedNotes.text(userNotes: userNotes, inlineNotes: inlineNotes, tags: tags)
     }
 }
+
+extension ReminderCreationRequest {
+    init(fields: QuickAddFields, userNotes: String?, listIdentifier: String?) {
+        self.init(
+            title: fields.title,
+            userNotes: userNotes,
+            inlineNotes: fields.inlineNotes,
+            tags: fields.tags,
+            listIdentifier: listIdentifier,
+            listName: fields.listName,
+            dueDate: fields.dueDate,
+            recurrence: fields.recurrence,
+            earlyReminder: fields.earlyReminder?.reminderValue,
+            url: fields.url,
+            priority: fields.priority
+        )
+    }
+}

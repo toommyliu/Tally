@@ -305,3 +305,84 @@ BOOL TallyApplyReminderKitMetadata(
         );
     }
 }
+
+#if DEBUG
+static BOOL TallyVerifyReadSelectors(
+    NSString *className,
+    NSArray<NSString *> *selectors,
+    NSError **error
+) {
+    Class objectClass = NSClassFromString(className);
+    NSMutableSet<NSString *> *methods = [NSMutableSet set];
+    for (Class current = objectClass; current != Nil; current = class_getSuperclass(current)) {
+        unsigned int count = 0;
+        Method *listedMethods = class_copyMethodList(current, &count);
+        for (unsigned int index = 0; index < count; index++) {
+            [methods addObject:NSStringFromSelector(method_getName(listedMethods[index]))];
+        }
+        free(listedMethods);
+    }
+    for (NSString *selector in selectors) {
+        if (![methods containsObject:selector]) {
+            return TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                [NSString stringWithFormat:@"%@ is missing read selector %@.", className, selector]);
+        }
+    }
+    return YES;
+}
+
+NSDictionary<NSString *, id> * _Nullable TallyReadReminderKitMetadata(
+    EKReminder *reminder,
+    NSError * _Nullable * _Nullable error
+) {
+    @try {
+        if (!TallyLoadReminderKit()) {
+            TallyReminderKitFail(error, TallyReminderKitErrorUnavailable, @"Could not load ReminderKit.");
+            return nil;
+        }
+        NSDictionary<NSString *, NSArray<NSString *> *> *selectors = @{
+            @"REMReminderStorage": @[@"dueDateDeltaAlertsData"]
+        };
+        for (NSString *className in selectors) {
+            if (!TallyVerifyReadSelectors(className, selectors[className], error)) {
+                return nil;
+            }
+        }
+        id nativeReminder = TallyReminderKitReminder(reminder);
+        Ivar storageIvar = nativeReminder == nil ? NULL : TallyFindIvar([nativeReminder class], "_storage");
+        id storage = storageIvar == NULL ? nil : object_getIvar(nativeReminder, storageIvar);
+        if (![storage isKindOfClass:NSClassFromString(@"REMReminderStorage")]) {
+            TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                @"Could not access the fetched reminder's native storage.");
+            return nil;
+        }
+        // EventKit's backing reminder leaves delta alerts unfetched, so the persisted JSON is the only copy.
+        NSData *data = ((id (*)(id, SEL))objc_msgSend)(storage, NSSelectorFromString(@"dueDateDeltaAlertsData"));
+        NSMutableArray *deltas = [NSMutableArray array];
+        if (data.length > 0) {
+            NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            NSArray *alerts = [payload isKindOfClass:[NSDictionary class]] ? payload[@"dueDateDeltaAlerts"] : nil;
+            if (![alerts isKindOfClass:[NSArray class]]) {
+                TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                    @"The native delta alert data has an unsupported format.");
+                return nil;
+            }
+            for (NSDictionary *alert in alerts) {
+                NSNumber *unit = [alert isKindOfClass:[NSDictionary class]] ? alert[@"dueDateDeltaUnit"] : nil;
+                NSNumber *count = [alert isKindOfClass:[NSDictionary class]] ? alert[@"dueDateDeltaCount"] : nil;
+                if (![unit isKindOfClass:[NSNumber class]] || ![count isKindOfClass:[NSNumber class]]) {
+                    TallyReminderKitFail(error, TallyReminderKitErrorIncompatibleRuntime,
+                        @"The native delta alert has an unsupported format.");
+                    return nil;
+                }
+                [deltas addObject:@{@"unit": unit, @"count": count}];
+            }
+        }
+        return @{@"deltaAlerts": deltas, @"selectors": selectors};
+    } @catch (NSException *exception) {
+        TallyReminderKitFail(error, TallyReminderKitErrorException,
+            [NSString stringWithFormat:@"Could not read native metadata: %@", exception.reason]);
+        return nil;
+    }
+}
+#endif

@@ -95,17 +95,9 @@ final class QuickAddDraft: ObservableObject {
         }
 
         return ReminderCreationRequest(
-            title: fields.title,
+            fields: fields,
             userNotes: notes,
-            inlineNotes: fields.inlineNotes,
-            tags: fields.tags,
-            listIdentifier: selectedDestinationIdentifier(for: fields),
-            listName: fields.listName,
-            dueDate: fields.dueDate,
-            recurrence: fields.recurrence,
-            earlyReminder: fields.earlyReminder?.reminderValue,
-            url: fields.url,
-            priority: fields.priority
+            listIdentifier: selectedDestinationIdentifier(for: fields)
         )
     }
 

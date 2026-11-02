@@ -262,6 +262,121 @@ final class QuickAddEarlyReminderTests: XCTestCase {
         XCTAssertEqual(blocked.title, "Call !two weeks")
     }
 
+    func testPresetTextEditsReplaceOnlyTheClaimAndAreIdempotent() {
+        let offset = ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 15)!, unit: .minutes)
+        func edit(_ input: String, _ value: ReminderEarlyReminder?) -> String {
+            QuickAddTokenEditor.applyingEarlyReminder(value, to: input, calendar: calendar, now: now).text
+        }
+        let replaced = edit("Call !100m tomorrow 3pm // note", offset)
+        XCTAssertEqual(replaced, "Call !15m tomorrow 3pm // note")
+        XCTAssertEqual(edit(replaced, offset), replaced)
+        XCTAssertEqual(edit(replaced, nil), "Call tomorrow 3pm // note")
+        XCTAssertEqual(edit("Call tomorrow // note", offset), "Call tomorrow !15m // note")
+        let duplicates = edit("Call !30m !2h tomorrow 3pm", offset)
+        XCTAssertEqual(duplicates, "Call !15m !2h tomorrow 3pm")
+        let removed = edit(duplicates, nil)
+        XCTAssertEqual(removed, "Call !2h tomorrow 3pm")
+        XCTAssertEqual(parse(removed).earlyReminder?.reminderValue?.amount.value, 2)
+    }
+
+    @MainActor
+    func testDraftDateEditsPreserveTheTokenAndResolveItAgain() throws {
+        let defaults = UserDefaults(suiteName: "QuickAddEarlyReminderTests.\(UUID().uuidString)")!
+        let draft = QuickAddDraft(settingsStore: AppSettingsStore(userDefaults: defaults), calendar: calendar, now: { self.now })
+        draft.text = "Call tomorrow 3pm !30m"
+        draft.applyDueDate(nil)
+        XCTAssertEqual(draft.text, "Call !30m")
+        XCTAssertEqual(draft.fields.earlyReminder?.warning, "Add a date")
+        draft.applyDueDate(QuickAddDueDateSelection(date: date(2026, 10, 1, 15, 0), includesTime: false))
+        XCTAssertEqual(draft.fields.earlyReminder?.warning, "Add a time")
+        draft.applyDueDate(QuickAddDueDateSelection(date: date(2026, 10, 1, 15, 0), includesTime: true))
+        XCTAssertEqual(draft.makeReminderRequest()?.earlyReminder?.amount.value, 30)
+        draft.mode = .event
+        draft.applyEventLength(.allDay)
+        XCTAssertTrue(draft.text.contains("!30m"))
+        XCTAssertEqual(draft.fields.earlyReminder?.warning, "Add a time")
+        XCTAssertNil(try XCTUnwrap(draft.makeEventRequest()).alert)
+    }
+
+    @MainActor
+    func testDraftPresetEditsPreserveEscRangesAfterEmojiInsertion() throws {
+        let defaults = UserDefaults(suiteName: "QuickAddEarlyReminderTests.\(UUID().uuidString)")!
+        let draft = QuickAddDraft(settingsStore: AppSettingsStore(userDefaults: defaults), calendar: calendar, now: { self.now })
+        draft.text = "Call !30 min before tomorrow 3pm"
+        let token = try XCTUnwrap(draft.fields.earlyReminder?.token)
+        XCTAssertTrue(draft.keepTokenAsText(at: token.range))
+        draft.text = "📞 " + draft.text
+        draft.applyEarlyReminder(ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 1)!, unit: .days))
+        XCTAssertEqual(draft.fields.title, "📞 Call !30 min before")
+        XCTAssertEqual(draft.fields.earlyReminder?.reminderValue?.unit, .days)
+        draft.applyDueDate(QuickAddDueDateSelection(date: date(2026, 10, 2, 15, 0), includesTime: true))
+        XCTAssertEqual(draft.fields.title, "📞 Call !30 min before")
+        XCTAssertEqual(draft.suppressedTokens.count, 1)
+    }
+
+    func testPresentationsShowFireTimeOrDayAndExactWarnings() {
+        func presentation(_ text: String, mode: QuickAddMode = .reminder) -> EarlyReminderPresentation {
+            EarlyReminderPresentation(parse(text, mode: mode).earlyReminder, calendar: calendar, locale: Locale(identifier: "en_US"))
+        }
+        XCTAssertEqual(presentation("Call tomorrow 3pm !30m").chipTitle, "30 min before · 2:30 PM")
+        XCTAssertEqual(presentation("Call tomorrow 3pm !30m").previewTitle, "Thu, Oct 1 at 2:30 PM")
+        let day = presentation("Call 2026-10-02 !1d")
+        XCTAssertEqual(day.chipTitle, "1 day before · Thu")
+        XCTAssertEqual(day.previewTitle, "Thu, Oct 1")
+        XCTAssertFalse(day.accessibilityValue.contains("AM"))
+        XCTAssertFalse(day.accessibilityValue.contains("PM"))
+        XCTAssertTrue(day.accessibilityValue.contains("October 1, 2026"))
+        let dst = presentation("Call 2026-11-01 3pm !1d", mode: .event)
+        XCTAssertEqual(dst.chipTitle, "1 day before · 4:00 PM")
+        XCTAssertTrue(dst.accessibilityValue.contains("October 31, 2026"))
+        XCTAssertEqual(presentation("Call !100m").chipTitle, "Up to 99")
+        XCTAssertEqual(presentation("Call !0m").chipTitle, "Use 1 or more")
+    }
+
+    func testPresetCatalogMatchesRemindersWordingAndOrder() {
+        XCTAssertEqual(EarlyReminderCatalog.presets(for: .dateOnly).map(\.title), [
+            "1 day before", "2 days before", "1 week before", "2 weeks before", "1 month before", "3 months before", "6 months before"
+        ])
+        XCTAssertEqual(EarlyReminderCatalog.presets(for: .timed).map(\.title), [
+            "5 minutes before", "15 minutes before", "30 minutes before", "1 hour before", "2 hours before",
+            "1 day before", "2 days before", "1 week before", "1 month before"
+        ])
+    }
+
+    @MainActor
+    func testCustomAmountsShareSyntaxValidationWithoutClamping() {
+        let defaults = UserDefaults(suiteName: "QuickAddEarlyReminderTests.\(UUID().uuidString)")!
+        let draft = QuickAddDraft(settingsStore: AppSettingsStore(userDefaults: defaults), calendar: calendar, now: { self.now })
+        draft.text = "Call"
+        let input = EarlyReminderCustomInput(amountText: "0002", unit: .hours)
+        XCTAssertEqual(input.unitMenuTitle(.hours), "hours before")
+        XCTAssertEqual(EarlyReminderCustomInput(amountText: "1", unit: .days).unitMenuTitle(.days), "day before")
+        draft.applyEarlyReminder(input.offset)
+        XCTAssertEqual(draft.text, "Call !2h")
+        XCTAssertEqual(draft.fields.earlyReminder?.warning, "Add a date")
+        for (text, warning) in [("0", "Use 1 or more"), ("100", "Up to 99"), ("99999999999999999999999999", "Up to 99"), ("1.5", "Use a whole number")] {
+            let invalid = EarlyReminderCustomInput(amountText: text, unit: .days)
+            XCTAssertNil(invalid.offset)
+            XCTAssertEqual(invalid.numericWarning, warning)
+        }
+    }
+
+    func testSharedDurationGrammarsKeepTheirOwnLimits() {
+        for (text, amount) in [("in half an hour", 30), ("+2 hours", 120)] {
+            let fields = parse("Call \(text)")
+            XCTAssertEqual(fields.title, "Call")
+            XCTAssertEqual(calendar.date(from: fields.dueDate!)!.timeIntervalSince(now), Double(amount * 60))
+        }
+        XCTAssertEqual(parse("Call in a few days").dueDate?.day, 3)
+        XCTAssertEqual(parse("Call 2 days before friday").dueDate?.day, 30)
+        for (text, minutes, days) in [("1.5h", 90, 0), ("1h30m", 90, 0), ("120m", 120, 0), ("2 weeks", 0, 14)] {
+            let fields = parse("Call tomorrow 3pm for \(text)", mode: .event)
+            XCTAssertEqual(fields.title, "Call")
+            if days == 0 { XCTAssertEqual(fields.eventTiming?.durationMinutes, minutes) }
+            else { XCTAssertEqual(fields.eventDuration?.amount, days) }
+        }
+    }
+
 }
 
 extension QuickAddEarlyReminderTests {
@@ -304,5 +419,46 @@ extension QuickAddEarlyReminderTests {
         XCTAssertNil(fields.recurrence)
         XCTAssertNil(fields.earlyReminder)
         XCTAssertTrue(fields.usedTokens.isEmpty)
+    }
+}
+
+extension QuickAddEarlyReminderTests {
+    @MainActor
+    func testPickingAnEarlyReminderPreservesAKeptNoteWithTrailingWhitespace() throws {
+        let defaults = UserDefaults(suiteName: "QuickAddEarlyReminderTests.\(UUID().uuidString)")!
+        let draft = QuickAddDraft(settingsStore: AppSettingsStore(userDefaults: defaults),
+            calendar: calendar, now: { self.now })
+        draft.text = "Buy milk tomorrow 3pm // note text "
+        let token = try XCTUnwrap(draft.fields.usedTokens.first { $0.kind == .note })
+        XCTAssertTrue(draft.keepTokenAsText(at: token.range))
+        let offset = ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 1)!, unit: .hours)
+        draft.applyEarlyReminder(offset)
+        XCTAssertEqual(draft.text, "Buy milk tomorrow 3pm // note text !1h")
+        XCTAssertEqual(draft.suppressedTokens.map(\.text), ["// note text"])
+        XCTAssertEqual(draft.fields.title, "Buy milk // note text")
+        XCTAssertNil(draft.fields.inlineNotes)
+        XCTAssertEqual(draft.makeReminderRequest()?.earlyReminder, offset)
+    }
+
+    @MainActor
+    func testPickingAPresetPreservesAnEarlyReminderKeptAsTextAcrossWhitespaceNormalization() throws {
+        let defaults = UserDefaults(suiteName: "QuickAddEarlyReminderTests.\(UUID().uuidString)")!
+        let draft = QuickAddDraft(settingsStore: AppSettingsStore(userDefaults: defaults),
+            calendar: calendar, now: { self.now })
+        draft.text = "Call !30   min before tomorrow 3pm"
+        let token = try XCTUnwrap(draft.fields.earlyReminder?.token)
+        XCTAssertTrue(draft.keepTokenAsText(at: token.range))
+        let offset = ReminderEarlyReminder(amount: EarlyReminderAmount(validating: 1)!, unit: .days)
+        let edited = QuickAddTokenEditor.applyingEarlyReminder(offset, to: draft.text,
+            calendar: calendar, now: now, suppressedTokens: draft.suppressedTokens).text
+        draft.applyEarlyReminder(offset)
+        XCTAssertEqual(draft.text, edited)
+        XCTAssertEqual(draft.suppressedTokens.map(\.text), ["!30 min before"])
+        XCTAssertEqual(draft.fields.title, "Call !30 min before")
+        XCTAssertEqual(draft.makeReminderRequest()?.earlyReminder, offset)
+        draft.applyEarlyReminder(offset)
+        XCTAssertEqual(draft.text, edited)
+        XCTAssertEqual(draft.fields.title, "Call !30 min before")
+        XCTAssertEqual(draft.makeReminderRequest()?.earlyReminder, offset)
     }
 }

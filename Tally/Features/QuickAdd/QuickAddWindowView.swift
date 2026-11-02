@@ -2,6 +2,7 @@ import SwiftUI
 
 enum QuickAddFocusTarget: Hashable {
     case dueDate
+    case earlyReminder
     case eventLength
     case list
     case priority
@@ -30,13 +31,15 @@ struct QuickAddWindowView: View {
     let onPreferredHeightChange: (CGFloat) -> Void
 
     var body: some View {
+        let context = draft.captureContext()
+        let fields = draft.fields(in: context)
         VStack(spacing: 0) {
-            composer
+            composer(fields: fields, context: context)
 
             Divider()
                 .opacity(0.58)
 
-            footer
+            footer(fields: fields)
         }
         .frame(
             width: TallyChrome.quickAddPanelSize.width,
@@ -68,7 +71,7 @@ struct QuickAddWindowView: View {
         RoundedRectangle(cornerRadius: TallyChrome.panelCornerRadius, style: .continuous)
     }
 
-    private var composer: some View {
+    private func composer(fields: QuickAddFields, context: QuickAddParseContext) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 QuickAddModePicker(mode: draft.mode, onSelect: selectMode)
@@ -84,13 +87,14 @@ struct QuickAddWindowView: View {
                 text: $draft.text,
                 selectedRangeRequest: $draft.selectedRangeRequest,
                 measuredHeight: $titleEditorHeight,
-                tokens: draft.fields.usedTokens,
+                tokens: fields.usedTokens,
+                earlyReminder: fields.earlyReminder,
                 placeholder: draft.mode == .event ? "New Event" : "New Reminder",
                 onSubmit: submit,
                 onEscape: handleEscape,
                 onForwardTab: draft.focusNotes,
                 onBackwardTab: {
-                    focusedControl = draft.canSubmit ? .submit : .cancel
+                    focusedControl = draft.canSubmit(fields) ? .submit : .cancel
                 }
             )
             .frame(maxWidth: .infinity)
@@ -119,7 +123,8 @@ struct QuickAddWindowView: View {
             } else {
                 QuickAddMetadataBar(
                     mode: draft.mode,
-                    fields: draft.fields,
+                    context: context,
+                    fields: fields,
                     fallbackList: fallbackList,
                     lists: draft.mode == .event
                         ? calendarEventStore.calendars
@@ -129,6 +134,7 @@ struct QuickAddWindowView: View {
                     focusedControl: $focusedControl,
                     onFocusTitle: draft.focusTitleAtEnd,
                     onApplyDueDate: draft.applyDueDate,
+                    onApplyEarlyReminder: draft.applyEarlyReminder,
                     onApplyEventLength: draft.applyEventLength,
                     onSelectList: draft.selectList,
                     onUseDefaultList: draft.useDefaultList,
@@ -164,8 +170,9 @@ struct QuickAddWindowView: View {
         }
     }
 
-    private var footer: some View {
-        HStack(spacing: 8) {
+    private func footer(fields: QuickAddFields) -> some View {
+        let canSubmit = draft.canSubmit(fields) && !needsCalendarAccess
+        return HStack(spacing: 8) {
             if hasFeedback {
                 feedbackLine
                     .frame(maxWidth: 300, alignment: .leading)
@@ -283,10 +290,6 @@ struct QuickAddWindowView: View {
         draft.mode == .event && calendarEventStore.accessState != .authorized
     }
 
-    private var canSubmit: Bool {
-        draft.canSubmit && !needsCalendarAccess
-    }
-
     private var submitTitle: String {
         if draft.isSaving {
             return "Adding…"
@@ -326,7 +329,7 @@ struct QuickAddWindowView: View {
     }
 
     private func submit() {
-        guard canSubmit, let submission = draft.makeSubmission() else {
+        guard !draft.isSaving, !needsCalendarAccess, let submission = draft.makeSubmission() else {
             return
         }
 

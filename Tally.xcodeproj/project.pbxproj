@@ -69,6 +69,7 @@
 		736FC883B1826096C380C3E3 /* CalendarEventAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */; };
 		9D69096AE72C201ED245055E /* QuickAddEarlyReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */; };
 		42DE42FFAAE54136485159A9 /* QuickAddEarlyReminderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */; };
+		88042B89C028E130ABF3E12E /* QuickAddEarlyReminderPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF455A640EDB939B5426E5EC /* QuickAddEarlyReminderPopover.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -150,6 +151,7 @@
 		4E7B71BCB0FD93195D5C4C03 /* CalendarEventAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventAlert.swift; sourceTree = "<group>"; };
 		B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminder.swift; sourceTree = "<group>"; };
 		4433925348C2087207671AC1 /* QuickAddEarlyReminderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminderTests.swift; sourceTree = "<group>"; };
+		BF455A640EDB939B5426E5EC /* QuickAddEarlyReminderPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEarlyReminderPopover.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -224,6 +226,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000104 /* QuickAddParser.swift */,
+				BF455A640EDB939B5426E5EC /* QuickAddEarlyReminderPopover.swift */,
 				B398A7202A68F0623A3E6D13 /* QuickAddEarlyReminder.swift */,
 				AED1BA3149B371F11345B336 /* QuickAddDurationParser.swift */,
 				C30000000000000000000102 /* QuickAddParsingSupport.swift */,
@@ -442,6 +445,7 @@
 			files = (
 				100000000000000000000001 /* TallyApp.swift in Sources */,
 				100000000000000000000004 /* QuickAddParser.swift in Sources */,
+				88042B89C028E130ABF3E12E /* QuickAddEarlyReminderPopover.swift in Sources */,
 				9D69096AE72C201ED245055E /* QuickAddEarlyReminder.swift in Sources */,
 				AF14A5BA236EC779A3778772 /* QuickAddDurationParser.swift in Sources */,
 				C30000000000000000000002 /* QuickAddParsingSupport.swift in Sources */,

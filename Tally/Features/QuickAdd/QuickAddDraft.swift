@@ -61,13 +61,17 @@ final class QuickAddDraft: ObservableObject {
         keepsOpenAfterAdd = settingsStore.quickAddBehavior == .keepOpen
     }
 
-    var fields: QuickAddFields {
-        QuickAddParser.parse(text, mode: mode, calendar: calendar, now: now(), suppressedTokens: suppressedTokens)
+    func captureContext() -> QuickAddParseContext { QuickAddParseContext(calendar: calendar, now: now()) }
+
+    func fields(in context: QuickAddParseContext) -> QuickAddFields {
+        QuickAddParser.parse(text, mode: mode, calendar: context.calendar, now: context.now, suppressedTokens: suppressedTokens)
     }
 
-    var canSubmit: Bool {
-        let fields = fields
-        return !isSaving && !fields.title.isEmpty && (mode == .reminder || fields.eventTiming != nil)
+    var fields: QuickAddFields { fields(in: captureContext()) }
+    var canSubmit: Bool { canSubmit(fields) }
+
+    func canSubmit(_ fields: QuickAddFields) -> Bool {
+        !isSaving && !fields.title.isEmpty && (mode == .reminder || fields.eventTiming != nil)
     }
 
     /// The configured default reminder list. Events always use the system default calendar.
@@ -123,6 +127,13 @@ final class QuickAddDraft: ObservableObject {
             alert: fields.earlyReminder?.eventValue,
             url: fields.url
         )
+    }
+
+    func applyEarlyReminder(_ offset: ReminderEarlyReminder?) {
+        let context = captureContext()
+        applyProgrammaticTextEdit(QuickAddTokenEditor.applyingEarlyReminder(
+            offset, to: text, calendar: context.calendar, now: context.now,
+            suppressedTokens: suppressedTokens, mode: mode))
     }
 
     func applyDueDate(_ selection: QuickAddDueDateSelection?) {

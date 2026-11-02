@@ -128,6 +128,7 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
     @Binding var measuredHeight: CGFloat
 
     let tokens: [QuickAddToken]
+    var earlyReminder: QuickAddEarlyReminder? = nil
     let placeholder: String
     let onSubmit: () -> Void
     let onEscape: (NSRange) -> Bool
@@ -188,6 +189,13 @@ struct HighlightedQuickAddTextField: NSViewRepresentable {
 
         for token in tokens where NSMaxRange(token.range) <= fullRange.length {
             attributedString.addAttributes(attributes(for: token.kind), range: token.range)
+            if token.kind == .earlyReminder, earlyReminder?.isWarning == true, earlyReminder?.range == token.range {
+                attributedString.addAttributes([
+                    .foregroundColor: NSColor.systemOrange,
+                    .underlineStyle: NSUnderlineStyle.single.rawValue,
+                    .underlineColor: NSColor.systemOrange
+                ], range: token.range)
+            }
         }
 
         return attributedString

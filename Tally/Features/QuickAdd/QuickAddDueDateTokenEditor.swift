@@ -161,6 +161,16 @@ enum QuickAddTokenEditor {
         )
     }
 
+    static func applyingEarlyReminder(
+        _ offset: ReminderEarlyReminder?, to input: String,
+        calendar: Calendar = .current, now: Date = Date(),
+        suppressedTokens: [QuickAddSuppressedToken] = [], mode: QuickAddMode = .reminder
+    ) -> QuickAddTextEdit {
+        replacingTokens(in: input, matching: { $0.kind == .earlyReminder },
+                        with: offset.map(EarlyReminderCatalog.token(for:)), calendar: calendar, now: now,
+                        suppressedTokens: suppressedTokens, mode: mode)
+    }
+
     static func applyingPriority(
         _ priority: Int,
         to input: String,
